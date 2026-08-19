@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum BookingStatus {
+  pending
+  confirmed
+  delivered
+  returned
+  cancelled
+}
+
+model Package {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  binCount   Int
+  dollyCount Int
+  basePrice  Int // cents
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  bookings Booking[]
+
+  @@map("packages")
+}
+
+model Booking {
+  id        String @id @default(cuid())
+  bookingRef String @unique // short human-readable code, e.g. "MVU-7K2P9Q"
+
+  packageId String
+  package   Package @relation(fields: [packageId], references: [id])
+
+  customerName  String
+  customerEmail String
+  customerPhone String
+
+  deliveryAddress String
+  pickupAddress   String
+
+  deliveryDate DateTime
+  pickupDate   DateTime
+
+  status BookingStatus @default(pending)
+
+  stripeCustomerId      String?
+  stripePaymentIntentId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([packageId])
+  @@index([status])
+  @@index([deliveryDate, pickupDate])
+  @@map("bookings")
+}
+
+model InventoryConfig {
+  id           Int @id @default(1)
+  totalBins    Int
+  totalDollies Int
+
+  updatedAt DateTime @updatedAt
+
+  @@map("inventory_config")
+}
