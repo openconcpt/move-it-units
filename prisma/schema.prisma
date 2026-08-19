@@ -50,8 +50,14 @@ model Booking {
 
   status BookingStatus @default(pending)
 
+  // Only meaningful while status = pending: past this instant, the booking
+  // no longer holds inventory (see lib/availability.ts). Cleared on confirm.
+  expiresAt DateTime?
+
   stripeCustomerId      String?
+  stripeSessionId       String? @unique
   stripePaymentIntentId String?
+  stripePaymentMethodId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -59,6 +65,7 @@ model Booking {
   @@index([packageId])
   @@index([status])
   @@index([deliveryDate, pickupDate])
+  @@index([expiresAt])
   @@map("bookings")
 }
 
@@ -70,4 +77,15 @@ model InventoryConfig {
   updatedAt DateTime @updatedAt
 
   @@map("inventory_config")
+}
+
+// Records Stripe webhook event ids we've already handled. Stripe delivers
+// webhooks at-least-once, so this is the idempotency gate: the unique
+// constraint on `id` (the Stripe event id) atomically rejects duplicates.
+model ProcessedEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+
+  @@map("processed_events")
 }

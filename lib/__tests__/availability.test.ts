@@ -2,12 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   checkAvailability,
   getOccupiedDateRange,
+  DEFAULT_TURNAROUND_BUFFER_DAYS,
   type ExistingBookingInput,
 } from "../availability";
 
 /** UTC-midnight date helper, e.g. d("2026-01-10"). */
 function d(dateStr: string): Date {
   return new Date(`${dateStr}T00:00:00.000Z`);
+}
+
+/** Precise-instant helper for expiresAt/now comparisons, e.g. dt("2026-01-10T09:30:00Z"). */
+function dt(isoStr: string): Date {
+  return new Date(isoStr);
 }
 
 function booking(
@@ -191,6 +197,120 @@ describe("checkAvailability", () => {
       // 15 (active) + 10 requested = 25 > 20 total bins.
       expect(result.available).toBe(false);
       expect(result.binsShortfallDays.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("pending booking expiry", () => {
+    const now = dt("2026-04-01T10:00:00.000Z");
+
+    it("ignores a pending booking whose expiresAt has passed, freeing its capacity", () => {
+      const existing = [
+        booking({
+          deliveryDate: "2026-04-01",
+          pickupDate: "2026-04-05",
+          binCount: 20,
+          status: "pending",
+          expiresAt: dt("2026-04-01T09:00:00.000Z"), // expired 1h before `now`
+        }),
+      ];
+
+      const result = checkAvailability(
+        { deliveryDate: d("2026-04-01"), pickupDate: d("2026-04-05"), binCount: 20, dollyCount: 1 },
+        existing,
+        inventory,
+        DEFAULT_TURNAROUND_BUFFER_DAYS,
+        now
+      );
+
+      expect(result.available).toBe(true);
+    });
+
+    it("still holds inventory for a pending booking whose expiresAt has not passed yet", () => {
+      const existing = [
+        booking({
+          deliveryDate: "2026-04-01",
+          pickupDate: "2026-04-05",
+          binCount: 20,
+          status: "pending",
+          expiresAt: dt("2026-04-01T11:00:00.000Z"), // expires 1h after `now`
+        }),
+      ];
+
+      const result = checkAvailability(
+        { deliveryDate: d("2026-04-01"), pickupDate: d("2026-04-05"), binCount: 20, dollyCount: 1 },
+        existing,
+        inventory,
+        DEFAULT_TURNAROUND_BUFFER_DAYS,
+        now
+      );
+
+      expect(result.available).toBe(false);
+      expect(result.binsShortfallDays.length).toBeGreaterThan(0);
+    });
+
+    it("treats expiresAt exactly equal to now as already expired", () => {
+      const existing = [
+        booking({
+          deliveryDate: "2026-04-01",
+          pickupDate: "2026-04-05",
+          binCount: 20,
+          status: "pending",
+          expiresAt: now,
+        }),
+      ];
+
+      const result = checkAvailability(
+        { deliveryDate: d("2026-04-01"), pickupDate: d("2026-04-05"), binCount: 20, dollyCount: 1 },
+        existing,
+        inventory,
+        DEFAULT_TURNAROUND_BUFFER_DAYS,
+        now
+      );
+
+      expect(result.available).toBe(true);
+    });
+
+    it("ignores expiresAt for non-pending statuses, e.g. a confirmed booking always holds inventory", () => {
+      const existing = [
+        booking({
+          deliveryDate: "2026-04-01",
+          pickupDate: "2026-04-05",
+          binCount: 20,
+          status: "confirmed",
+          // Stale/unset expiresAt from before confirmation shouldn't matter.
+          expiresAt: dt("2026-04-01T00:00:00.000Z"),
+        }),
+      ];
+
+      const result = checkAvailability(
+        { deliveryDate: d("2026-04-01"), pickupDate: d("2026-04-05"), binCount: 20, dollyCount: 1 },
+        existing,
+        inventory,
+        DEFAULT_TURNAROUND_BUFFER_DAYS,
+        now
+      );
+
+      expect(result.available).toBe(false);
+    });
+
+    it("defaults `now` to the current time when not provided", () => {
+      const farFuturePending = [
+        booking({
+          deliveryDate: "2026-04-01",
+          pickupDate: "2026-04-05",
+          binCount: 20,
+          status: "pending",
+          expiresAt: dt("2099-01-01T00:00:00.000Z"),
+        }),
+      ];
+
+      const result = checkAvailability(
+        { deliveryDate: d("2026-04-01"), pickupDate: d("2026-04-05"), binCount: 20, dollyCount: 1 },
+        farFuturePending,
+        inventory
+      );
+
+      expect(result.available).toBe(false);
     });
   });
 

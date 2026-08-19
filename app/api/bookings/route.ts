@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { checkPackageAvailability } from "@/lib/availability";
 import { generateBookingRef } from "@/lib/bookingRef";
+import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,10 @@ const createBookingSchema = z
 class AvailabilityConflictError extends Error {}
 
 const MAX_ATTEMPTS = 3;
+const PENDING_BOOKING_TTL_MINUTES = 30;
+const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
+
+type BookingWithPackage = Prisma.BookingGetPayload<{ include: { package: true } }>;
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -45,9 +50,11 @@ export async function POST(request: Request) {
 
   const input = parsed.data;
 
+  let booking: BookingWithPackage | null = null;
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const booking = await prisma.$transaction(
+      booking = await prisma.$transaction(
         async (tx) => {
           const availability = await checkPackageAvailability(tx, {
             packageId: input.packageId,
@@ -73,13 +80,15 @@ export async function POST(request: Request) {
               deliveryDate: input.deliveryDate,
               pickupDate: input.pickupDate,
               status: "pending",
+              expiresAt: new Date(Date.now() + PENDING_BOOKING_TTL_MINUTES * 60 * 1000),
             },
+            include: { package: true },
           });
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
       );
 
-      return NextResponse.json({ booking }, { status: 201 });
+      break;
     } catch (err) {
       if (err instanceof AvailabilityConflictError) {
         return NextResponse.json({ error: err.message }, { status: 409 });
@@ -109,8 +118,76 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json(
-    { error: "Could not create booking due to concurrent demand, please try again" },
-    { status: 409 }
-  );
+  if (!booking) {
+    return NextResponse.json(
+      { error: "Could not create booking due to concurrent demand, please try again" },
+      { status: 409 }
+    );
+  }
+
+  // The pending booking now exists and is already accounted for by
+  // availability checks. Everything below is external Stripe I/O: if any of
+  // it fails, we deliberately do NOT roll back the booking — it just stays
+  // "pending" and will expire on its own (see PENDING_BOOKING_TTL_MINUTES),
+  // naturally freeing the inventory it briefly held.
+  try {
+    const customer = await getOrCreateStripeCustomer(
+      stripe,
+      booking.customerEmail,
+      booking.customerName
+    );
+
+    const checkoutSession = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer: customer.id,
+      payment_intent_data: {
+        setup_future_usage: "off_session",
+      },
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: { name: booking.package.name },
+            unit_amount: booking.package.basePrice,
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        bookingId: booking.id,
+        bookingRef: booking.bookingRef,
+      },
+      success_url: `${APP_URL}/bookings/${booking.bookingRef}?checkout=success`,
+      cancel_url: `${APP_URL}/bookings/${booking.bookingRef}?checkout=cancelled`,
+      // Computed independently (not reused from booking.expiresAt): Stripe
+      // requires this to be >= 30 minutes from ITS OWN creation timestamp,
+      // which is a moment later than when we set booking.expiresAt above.
+      // Padded by a minute so we don't risk landing under Stripe's minimum
+      // due to the processing delay between the two timestamps.
+      expires_at: Math.floor(Date.now() / 1000) + (PENDING_BOOKING_TTL_MINUTES + 1) * 60,
+    });
+
+    const updatedBooking = await prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        stripeCustomerId: customer.id,
+        stripeSessionId: checkoutSession.id,
+      },
+    });
+
+    return NextResponse.json(
+      { booking: updatedBooking, checkoutUrl: checkoutSession.url },
+      { status: 201 }
+    );
+  } catch (err) {
+    console.error(`Failed to start Stripe checkout for booking ${booking.bookingRef}`, err);
+    return NextResponse.json(
+      {
+        error:
+          "Booking created but payment could not be started. It will automatically expire and free up inventory; please try again.",
+        bookingRef: booking.bookingRef,
+      },
+      { status: 502 }
+    );
+  }
 }

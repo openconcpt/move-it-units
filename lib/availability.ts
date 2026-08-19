@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { PrismaClientOrTransaction } from "./prisma";
 
 export type BookingStatus =
   | "pending"
@@ -16,6 +16,8 @@ export interface ExistingBookingInput {
   status: BookingStatus;
   binCount: number;
   dollyCount: number;
+  /** Only meaningful while status is "pending"; past this instant the booking no longer holds inventory. */
+  expiresAt?: Date | null;
 }
 
 export interface AvailabilityRequest {
@@ -60,6 +62,19 @@ function rangesOverlap(a: DateRange, b: DateRange): boolean {
 }
 
 /**
+ * Cancelled bookings never hold inventory. Pending bookings stop holding
+ * inventory once their expiresAt has passed (an abandoned checkout should
+ * not lock capacity forever).
+ */
+function isHoldingInventory(booking: ExistingBookingInput, now: Date): boolean {
+  if (booking.status === "cancelled") return false;
+  if (booking.status === "pending" && booking.expiresAt && booking.expiresAt.getTime() <= now.getTime()) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * The full span of days a booking holds inventory for: delivery through
  * pickup inclusive, plus a turnaround buffer of unavailable days afterward
  * for cleaning/inspection.
@@ -98,7 +113,8 @@ export function checkAvailability(
   request: AvailabilityRequest,
   existingBookings: ExistingBookingInput[],
   inventory: InventoryTotals,
-  bufferDays: number = DEFAULT_TURNAROUND_BUFFER_DAYS
+  bufferDays: number = DEFAULT_TURNAROUND_BUFFER_DAYS,
+  now: Date = new Date()
 ): AvailabilityResult {
   const candidate = getOccupiedDateRange(
     request.deliveryDate,
@@ -107,7 +123,7 @@ export function checkAvailability(
   );
 
   const activeRanges = existingBookings
-    .filter((b) => b.status !== "cancelled")
+    .filter((b) => isHoldingInventory(b, now))
     .map((b) => ({
       binCount: b.binCount,
       dollyCount: b.dollyCount,
@@ -153,8 +169,6 @@ export function checkAvailability(
   return { available, binsShortfallDays, dolliesShortfallDays, reason };
 }
 
-type PrismaClientOrTransaction = PrismaClient | Prisma.TransactionClient;
-
 export interface CheckPackageAvailabilityParams {
   packageId: string;
   deliveryDate: Date;
@@ -162,6 +176,7 @@ export interface CheckPackageAvailabilityParams {
   /** Exclude this booking id from the overlap check (e.g. when re-validating an existing booking). */
   excludeBookingId?: string;
   bufferDays?: number;
+  now?: Date;
 }
 
 /**
@@ -177,6 +192,7 @@ export async function checkPackageAvailability(
     pickupDate,
     excludeBookingId,
     bufferDays = DEFAULT_TURNAROUND_BUFFER_DAYS,
+    now = new Date(),
   }: CheckPackageAvailabilityParams
 ): Promise<AvailabilityResult> {
   const pkg = await client.package.findUnique({ where: { id: packageId } });
@@ -219,6 +235,7 @@ export async function checkPackageAvailability(
     status: b.status as BookingStatus,
     binCount: b.package.binCount,
     dollyCount: b.package.dollyCount,
+    expiresAt: b.expiresAt,
   }));
 
   return checkAvailability(
@@ -230,6 +247,7 @@ export async function checkPackageAvailability(
     },
     existingBookings,
     { totalBins: inventoryConfig.totalBins, totalDollies: inventoryConfig.totalDollies },
-    bufferDays
+    bufferDays,
+    now
   );
 }
