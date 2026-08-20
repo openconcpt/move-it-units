@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatCents } from "@/lib/format";
 import { isZipInServiceArea, normalizeZip, SERVICE_AREA_CONTACT_EMAIL } from "@/lib/serviceArea";
+import { ADD_ON_SLUGS, type AddOnSlug } from "@/lib/addOns";
 
 interface PackageOption {
   id: string;
@@ -12,8 +13,19 @@ interface PackageOption {
   basePrice: number;
 }
 
+interface AddOnOption {
+  id: string;
+  slug: string;
+  name: string;
+  unitPrice: number;
+  binsPerUnit: number;
+  dolliesPerUnit: number;
+  blanketsPerUnit: number;
+}
+
 interface BookingFormProps {
   packages: PackageOption[];
+  addOns: AddOnOption[];
   preselectedPackageId?: string;
 }
 
@@ -26,6 +38,14 @@ type AvailabilityState =
 
 type ZipState = "idle" | "invalid" | "out-of-area" | "ok";
 
+type AddOnQuantities = Record<AddOnSlug, number>;
+
+const ADD_ON_MAX: Record<AddOnSlug, number> = {
+  [ADD_ON_SLUGS.extraBins]: 5,
+  [ADD_ON_SLUGS.extraDolly]: 5,
+  [ADD_ON_SLUGS.blankets]: 3,
+};
+
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -37,7 +57,15 @@ function zipStatusFor(raw: string): ZipState {
   return isZipInServiceArea(raw) ? "ok" : "out-of-area";
 }
 
-export function BookingForm({ packages, preselectedPackageId }: BookingFormProps) {
+/** e.g. "10 bins" / "1 dolly" / "6 blankets" — describes what one unit of an add-on provides. */
+function addOnUnitDescription(addOn: AddOnOption): string | null {
+  if (addOn.binsPerUnit > 0) return `${addOn.binsPerUnit} bins`;
+  if (addOn.dolliesPerUnit > 0) return `${addOn.dolliesPerUnit} ${addOn.dolliesPerUnit === 1 ? "dolly" : "dollies"}`;
+  if (addOn.blanketsPerUnit > 0) return `${addOn.blanketsPerUnit} blankets`;
+  return null;
+}
+
+export function BookingForm({ packages, addOns, preselectedPackageId }: BookingFormProps) {
   const defaultPackageId =
     (preselectedPackageId && packages.some((p) => p.id === preselectedPackageId)
       ? preselectedPackageId
@@ -46,6 +74,12 @@ export function BookingForm({ packages, preselectedPackageId }: BookingFormProps
   const [packageId, setPackageId] = useState(defaultPackageId);
   const [deliveryDate, setDeliveryDate] = useState("");
   const [pickupDate, setPickupDate] = useState("");
+
+  const [quantities, setQuantities] = useState<AddOnQuantities>({
+    [ADD_ON_SLUGS.extraBins]: 0,
+    [ADD_ON_SLUGS.extraDolly]: 0,
+    [ADD_ON_SLUGS.blankets]: 0,
+  });
 
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -65,10 +99,15 @@ export function BookingForm({ packages, preselectedPackageId }: BookingFormProps
   const deliveryZipStatus = zipStatusFor(deliveryZip);
   const pickupZipStatus = sameAsDelivery ? deliveryZipStatus : zipStatusFor(pickupZip);
 
+  const extraBinPacks = quantities[ADD_ON_SLUGS.extraBins];
+  const extraDollies = quantities[ADD_ON_SLUGS.extraDolly];
+  const blanketPacks = quantities[ADD_ON_SLUGS.blankets];
+
   const datesLookValid =
     deliveryDate !== "" && pickupDate !== "" && pickupDate >= deliveryDate;
 
-  // Debounced live availability check whenever the package or dates change.
+  // Debounced live availability check whenever the package, dates, or any
+  // add-on quantity changes.
   useEffect(() => {
     if (!packageId || !datesLookValid) {
       setAvailability({ status: "idle" });
@@ -80,7 +119,14 @@ export function BookingForm({ packages, preselectedPackageId }: BookingFormProps
 
     const timeoutId = setTimeout(async () => {
       try {
-        const params = new URLSearchParams({ packageId, deliveryDate, pickupDate });
+        const params = new URLSearchParams({
+          packageId,
+          deliveryDate,
+          pickupDate,
+          extraBinPacks: String(extraBinPacks),
+          extraDollies: String(extraDollies),
+          blanketPacks: String(blanketPacks),
+        });
         const res = await fetch(`/api/availability?${params.toString()}`, {
           signal: controller.signal,
         });
@@ -107,7 +153,7 @@ export function BookingForm({ packages, preselectedPackageId }: BookingFormProps
       controller.abort();
       clearTimeout(timeoutId);
     };
-  }, [packageId, deliveryDate, pickupDate, datesLookValid]);
+  }, [packageId, deliveryDate, pickupDate, datesLookValid, extraBinPacks, extraDollies, blanketPacks]);
 
   const formError = useMemo(() => {
     if (deliveryZipStatus === "invalid") return "Enter a 5-digit delivery ZIP code.";
@@ -116,6 +162,16 @@ export function BookingForm({ packages, preselectedPackageId }: BookingFormProps
     }
     return null;
   }, [deliveryZipStatus, pickupZipStatus, sameAsDelivery]);
+
+  const addOnLines = addOns
+    .map((addOn) => {
+      const qty = quantities[addOn.slug as AddOnSlug] ?? 0;
+      return { addOn, qty, lineTotal: addOn.unitPrice * qty };
+    })
+    .filter((line) => line.qty > 0);
+
+  const totalCents =
+    (selectedPackage?.basePrice ?? 0) + addOnLines.reduce((sum, line) => sum + line.lineTotal, 0);
 
   const canSubmit =
     selectedPackage !== null &&
@@ -154,6 +210,9 @@ export function BookingForm({ packages, preselectedPackageId }: BookingFormProps
           pickupZip: finalPickupZip,
           deliveryDate,
           pickupDate,
+          extraBinPacks,
+          extraDollies,
+          blanketPacks,
         }),
       });
 
@@ -216,6 +275,32 @@ export function BookingForm({ packages, preselectedPackageId }: BookingFormProps
 
         <AvailabilityBanner state={availability} />
       </fieldset>
+
+      {addOns.length > 0 && (
+        <fieldset className="flex flex-col gap-3">
+          <legend className="font-display text-lg font-bold">Add-ons</legend>
+
+          {addOns.map((addOn) => {
+            const slug = addOn.slug as AddOnSlug;
+            const unitDescription = addOnUnitDescription(addOn);
+            return (
+              <QuantityStepper
+                key={addOn.id}
+                label={addOn.name}
+                priceLabel={
+                  unitDescription
+                    ? `${formatCents(addOn.unitPrice)} for ${unitDescription}`
+                    : formatCents(addOn.unitPrice)
+                }
+                value={quantities[slug] ?? 0}
+                onChange={(next) => setQuantities((prev) => ({ ...prev, [slug]: next }))}
+                min={0}
+                max={ADD_ON_MAX[slug] ?? 5}
+              />
+            );
+          })}
+        </fieldset>
+      )}
 
       <fieldset className="flex flex-col gap-4">
         <legend className="font-display text-lg font-bold">Your info</legend>
@@ -320,10 +405,25 @@ export function BookingForm({ packages, preselectedPackageId }: BookingFormProps
 
       {selectedPackage && (
         <div className="rounded-2xl border border-line bg-surface p-5">
-          <div className="flex items-baseline justify-between">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-baseline justify-between text-sm">
+              <span>{selectedPackage.name}</span>
+              <span className="tabular-nums">{formatCents(selectedPackage.basePrice)}</span>
+            </div>
+            {addOnLines.map(({ addOn, qty, lineTotal }) => (
+              <div key={addOn.id} className="flex items-baseline justify-between text-sm text-muted">
+                <span>
+                  {addOn.name} &times; {qty}
+                </span>
+                <span className="tabular-nums">{formatCents(lineTotal)}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
             <span className="font-semibold">Total due today</span>
             <span className="font-display text-2xl font-extrabold tabular-nums">
-              {formatCents(selectedPackage.basePrice)}
+              {formatCents(totalCents)}
             </span>
           </div>
           <p className="mt-2 text-sm text-muted">
@@ -360,6 +460,52 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function QuantityStepper({
+  label,
+  priceLabel,
+  value,
+  onChange,
+  min,
+  max,
+}: {
+  label: string;
+  priceLabel: string;
+  value: number;
+  onChange: (next: number) => void;
+  min: number;
+  max: number;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface px-4 py-3">
+      <div>
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="text-sm text-muted">{priceLabel}</p>
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(min, value - 1))}
+          disabled={value <= min}
+          aria-label={`Decrease ${label} quantity`}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-lg font-semibold transition-colors hover:border-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line"
+        >
+          −
+        </button>
+        <span className="w-4 text-center text-base font-semibold tabular-nums">{value}</span>
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(max, value + 1))}
+          disabled={value >= max}
+          aria-label={`Increase ${label} quantity`}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-lg font-semibold transition-colors hover:border-accent disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AvailabilityBanner({ state }: { state: AvailabilityState }) {
   if (state.status === "idle") return null;
 
@@ -374,8 +520,8 @@ function AvailabilityBanner({ state }: { state: AvailabilityState }) {
   if (state.status === "unavailable") {
     return (
       <p className="text-sm font-medium text-danger">
-        Those dates aren&apos;t available for this package. Try different dates or a smaller
-        package.
+        Those dates aren&apos;t available for this package and add-ons. Try different dates,
+        fewer add-ons, or a smaller package.
       </p>
     );
   }

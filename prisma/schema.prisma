@@ -59,6 +59,13 @@ model Booking {
   stripePaymentIntentId String?
   stripePaymentMethodId String?
 
+  // Add-on quantities. These consume fleet capacity (see lib/availability.ts
+  // and lib/addOns.ts for the per-unit multipliers) and must always flow
+  // through checkAvailability — never treat these as decorative line items.
+  extraBinPacks Int @default(0)
+  extraDollies  Int @default(0)
+  blanketPacks  Int @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -70,13 +77,36 @@ model Booking {
 }
 
 model InventoryConfig {
-  id           Int @id @default(1)
-  totalBins    Int
-  totalDollies Int
+  id            Int @id @default(1)
+  totalBins     Int
+  totalDollies  Int
+  totalBlankets Int @default(0)
 
   updatedAt DateTime @updatedAt
 
   @@map("inventory_config")
+}
+
+// Add-on catalog: pricing AND the physical bins/dollies/blankets each unit
+// represents live here together, so availability math and Stripe pricing
+// can never drift apart (see lib/addOns.ts for the well-known slugs).
+model AddOn {
+  id     String @id @default(cuid())
+  slug   String @unique
+  name   String
+
+  unitPrice Int // cents, per unit/pack purchased
+
+  binsPerUnit     Int @default(0)
+  dolliesPerUnit  Int @default(0)
+  blanketsPerUnit Int @default(0)
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("add_ons")
 }
 
 // Records Stripe webhook event ids we've already handled. Stripe delivers

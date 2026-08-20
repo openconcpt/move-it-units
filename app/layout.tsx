@@ -43,7 +43,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               </Link>
               <a
                 href={PHONE_TEL_HREF}
-                className="text-xs font-semibold text-ink underline-offset-2 hover:underline"
+                className="text-sm font-semibold text-accent underline-offset-2 hover:underline"
               >
                 {PHONE_DISPLAY}
               </a>

@@ -6,10 +6,15 @@ interface BookPageProps {
 }
 
 export default async function BookPage({ searchParams }: BookPageProps) {
-  const [packages, { package: preselectedPackageId }] = await Promise.all([
+  const [packages, addOns, { package: preselectedPackageId }] = await Promise.all([
     prisma.package.findMany({
       where: { active: true },
       orderBy: { basePrice: "asc" },
+    }),
+    // Inactive add-ons (e.g. blankets, until we own any) must not render.
+    prisma.addOn.findMany({
+      where: { active: true },
+      orderBy: { unitPrice: "asc" },
     }),
     searchParams,
   ]);
@@ -24,7 +29,7 @@ export default async function BookPage({ searchParams }: BookPageProps) {
       </p>
 
       <div className="mt-10 max-w-xl">
-        <BookingForm packages={packages} preselectedPackageId={preselectedPackageId} />
+        <BookingForm packages={packages} addOns={addOns} preselectedPackageId={preselectedPackageId} />
       </div>
     </div>
   );

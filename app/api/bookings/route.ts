@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import type Stripe from "stripe";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { checkPackageAvailability } from "@/lib/availability";
 import { generateBookingRef } from "@/lib/bookingRef";
 import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
 import { isZipInServiceArea, normalizeZip, SERVICE_AREA_CONTACT_EMAIL } from "@/lib/serviceArea";
+import { ADD_ON_SLUGS, type AddOnSlug } from "@/lib/addOns";
 
 export const runtime = "nodejs";
 
@@ -25,6 +27,9 @@ const createBookingSchema = z
     }),
     deliveryDate: z.coerce.date(),
     pickupDate: z.coerce.date(),
+    extraBinPacks: z.coerce.number().int().min(0).max(5).default(0),
+    extraDollies: z.coerce.number().int().min(0).max(5).default(0),
+    blanketPacks: z.coerce.number().int().min(0).max(3).default(0),
   })
   .refine((data) => data.pickupDate.getTime() >= data.deliveryDate.getTime(), {
     message: "pickupDate cannot be before deliveryDate",
@@ -38,6 +43,11 @@ const PENDING_BOOKING_TTL_MINUTES = 30;
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 
 type BookingWithPackage = Prisma.BookingGetPayload<{ include: { package: true } }>;
+
+interface RequestedAddOn {
+  slug: AddOnSlug;
+  quantity: number;
+}
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -56,6 +66,28 @@ export async function POST(request: Request) {
   }
 
   const input = parsed.data;
+
+  const requestedAddOns: RequestedAddOn[] = [
+    { slug: ADD_ON_SLUGS.extraBins, quantity: input.extraBinPacks },
+    { slug: ADD_ON_SLUGS.extraDolly, quantity: input.extraDollies },
+    { slug: ADD_ON_SLUGS.blankets, quantity: input.blanketPacks },
+  ];
+
+  const addOnRows = await prisma.addOn.findMany({
+    where: { slug: { in: requestedAddOns.map((a) => a.slug) } },
+  });
+  const addOnBySlug = new Map(addOnRows.map((a) => [a.slug, a]));
+
+  for (const { slug, quantity } of requestedAddOns) {
+    if (quantity <= 0) continue;
+    const addOn = addOnBySlug.get(slug);
+    if (!addOn || !addOn.active) {
+      return NextResponse.json(
+        { error: `${addOn?.name ?? "That add-on"} isn't currently available.` },
+        { status: 422 }
+      );
+    }
+  }
 
   const outOfAreaField = !isZipInServiceArea(input.deliveryZip)
     ? "delivery"
@@ -82,6 +114,9 @@ export async function POST(request: Request) {
             packageId: input.packageId,
             deliveryDate: input.deliveryDate,
             pickupDate: input.pickupDate,
+            extraBinPacks: input.extraBinPacks,
+            extraDollies: input.extraDollies,
+            blanketPacks: input.blanketPacks,
           });
 
           if (!availability.available) {
@@ -101,6 +136,9 @@ export async function POST(request: Request) {
               pickupAddress: input.pickupAddress,
               deliveryDate: input.deliveryDate,
               pickupDate: input.pickupDate,
+              extraBinPacks: input.extraBinPacks,
+              extraDollies: input.extraDollies,
+              blanketPacks: input.blanketPacks,
               status: "pending",
               expiresAt: new Date(Date.now() + PENDING_BOOKING_TTL_MINUTES * 60 * 1000),
             },
@@ -159,22 +197,39 @@ export async function POST(request: Request) {
       booking.customerName
     );
 
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: { name: booking.package.name },
+          unit_amount: booking.package.basePrice,
+        },
+        quantity: 1,
+      },
+    ];
+
+    // A separate line item per add-on so the customer's receipt itemizes
+    // correctly; `active` was already validated above.
+    for (const { slug, quantity } of requestedAddOns) {
+      if (quantity <= 0) continue;
+      const addOn = addOnBySlug.get(slug)!;
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: { name: addOn.name },
+          unit_amount: addOn.unitPrice,
+        },
+        quantity,
+      });
+    }
+
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "payment",
       customer: customer.id,
       payment_intent_data: {
         setup_future_usage: "off_session",
       },
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: { name: booking.package.name },
-            unit_amount: booking.package.basePrice,
-          },
-          quantity: 1,
-        },
-      ],
+      line_items: lineItems,
       metadata: {
         bookingId: booking.id,
         bookingRef: booking.bookingRef,

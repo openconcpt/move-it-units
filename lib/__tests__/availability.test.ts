@@ -314,6 +314,85 @@ describe("checkAvailability", () => {
     });
   });
 
+  describe("add-ons consume fleet capacity", () => {
+    it("extra bins push an otherwise-available booking over bin capacity", () => {
+      // Package alone requests 15 of 20 bins — fits fine.
+      const baseline = checkAvailability(
+        { deliveryDate: d("2026-05-01"), pickupDate: d("2026-05-05"), binCount: 15, dollyCount: 1 },
+        [],
+        inventory
+      );
+      expect(baseline.available).toBe(true);
+
+      // The same request plus 1 extra-bin-pack (10 more bins): 15 + 10 = 25 > 20.
+      const withExtraBins = checkAvailability(
+        { deliveryDate: d("2026-05-01"), pickupDate: d("2026-05-05"), binCount: 25, dollyCount: 1 },
+        [],
+        inventory
+      );
+      expect(withExtraBins.available).toBe(false);
+      expect(withExtraBins.binsShortfallDays.length).toBeGreaterThan(0);
+      expect(withExtraBins.reason).toContain("bins");
+    });
+
+    it("extra dollies exhaust dolly capacity while bins remain free", () => {
+      // 5 of 20 bins (plenty of room), but 3 of 2 dollies: 1 package dolly +
+      // 2 extra dollies.
+      const result = checkAvailability(
+        { deliveryDate: d("2026-05-10"), pickupDate: d("2026-05-12"), binCount: 5, dollyCount: 3 },
+        [],
+        inventory
+      );
+
+      expect(result.available).toBe(false);
+      expect(result.binsShortfallDays).toEqual([]);
+      expect(result.dolliesShortfallDays.length).toBeGreaterThan(0);
+      expect(result.reason).toContain("dollies");
+      expect(result.reason).not.toContain("bins");
+    });
+
+    it("blankets are constrained independently of bins and dollies", () => {
+      const inventoryWithBlankets = { totalBins: 100, totalDollies: 10, totalBlankets: 6 };
+
+      // An existing booking already holds 1 blanket pack (6 blankets) —
+      // trivial bin/dolly usage so it can't affect those dimensions.
+      const existing = [
+        booking({
+          deliveryDate: "2026-06-01",
+          pickupDate: "2026-06-05",
+          binCount: 1,
+          dollyCount: 1,
+          blanketCount: 6,
+        }),
+      ];
+
+      // A new request for 2 more blanket packs (12 blankets): 6 + 12 = 18 > 6.
+      const result = checkAvailability(
+        { deliveryDate: d("2026-06-02"), pickupDate: d("2026-06-03"), binCount: 1, dollyCount: 1, blanketCount: 12 },
+        existing,
+        inventoryWithBlankets
+      );
+
+      expect(result.available).toBe(false);
+      expect(result.binsShortfallDays).toEqual([]);
+      expect(result.dolliesShortfallDays).toEqual([]);
+      expect(result.blanketsShortfallDays.length).toBeGreaterThan(0);
+      expect(result.reason).toContain("blankets");
+      expect(result.reason).not.toContain("bins");
+      expect(result.reason).not.toContain("dollies");
+    });
+
+    it("a request with no blanket demand is unaffected by totalBlankets being 0", () => {
+      const result = checkAvailability(
+        { deliveryDate: d("2026-06-10"), pickupDate: d("2026-06-12"), binCount: 5, dollyCount: 1 },
+        [],
+        inventory // no totalBlankets set at all — defaults to 0 capacity
+      );
+
+      expect(result.available).toBe(true);
+    });
+  });
+
   describe("multiple overlapping bookings sum together", () => {
     it("combines usage across several concurrent bookings against the same total", () => {
       const existing = [

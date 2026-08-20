@@ -10,6 +10,9 @@ const querySchema = z
     packageId: z.string().min(1, "packageId is required"),
     deliveryDate: z.coerce.date(),
     pickupDate: z.coerce.date(),
+    extraBinPacks: z.coerce.number().int().min(0).max(5).default(0),
+    extraDollies: z.coerce.number().int().min(0).max(5).default(0),
+    blanketPacks: z.coerce.number().int().min(0).max(3).default(0),
   })
   .refine((data) => data.pickupDate.getTime() >= data.deliveryDate.getTime(), {
     message: "pickupDate cannot be before deliveryDate",
@@ -23,6 +26,9 @@ export async function GET(request: Request) {
     packageId: searchParams.get("packageId"),
     deliveryDate: searchParams.get("deliveryDate"),
     pickupDate: searchParams.get("pickupDate"),
+    extraBinPacks: searchParams.get("extraBinPacks") ?? undefined,
+    extraDollies: searchParams.get("extraDollies") ?? undefined,
+    blanketPacks: searchParams.get("blanketPacks") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -32,13 +38,17 @@ export async function GET(request: Request) {
     );
   }
 
-  const { packageId, deliveryDate, pickupDate } = parsed.data;
+  const { packageId, deliveryDate, pickupDate, extraBinPacks, extraDollies, blanketPacks } =
+    parsed.data;
 
   try {
     const result = await checkPackageAvailability(prisma, {
       packageId,
       deliveryDate,
       pickupDate,
+      extraBinPacks,
+      extraDollies,
+      blanketPacks,
     });
 
     return NextResponse.json({ available: result.available, reason: result.reason });

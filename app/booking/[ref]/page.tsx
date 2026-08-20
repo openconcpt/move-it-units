@@ -1,10 +1,17 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatCalendarDate } from "@/lib/format";
+import { formatCalendarDate, formatCents } from "@/lib/format";
+import { ADD_ON_SLUGS, type AddOnSlug } from "@/lib/addOns";
 import { BookingStatus } from "./BookingStatus";
 
 interface BookingConfirmationPageProps {
   params: Promise<{ ref: string }>;
+}
+
+interface ReceiptLine {
+  label: string;
+  qty: number;
+  amountCents: number;
 }
 
 export default async function BookingConfirmationPage({ params }: BookingConfirmationPageProps) {
@@ -19,6 +26,38 @@ export default async function BookingConfirmationPage({ params }: BookingConfirm
     notFound();
   }
 
+  // Look up by slug regardless of `active` — a past booking may reference
+  // an add-on that's since been deactivated, and its receipt must still
+  // show what was actually purchased.
+  const addOnRows = await prisma.addOn.findMany({
+    where: {
+      slug: { in: [ADD_ON_SLUGS.extraBins, ADD_ON_SLUGS.extraDolly, ADD_ON_SLUGS.blankets] },
+    },
+  });
+  const addOnBySlug = new Map(addOnRows.map((a) => [a.slug as AddOnSlug, a]));
+
+  const addOnQuantities: [AddOnSlug, number][] = [
+    [ADD_ON_SLUGS.extraBins, booking.extraBinPacks],
+    [ADD_ON_SLUGS.extraDolly, booking.extraDollies],
+    [ADD_ON_SLUGS.blankets, booking.blanketPacks],
+  ];
+
+  const lines: ReceiptLine[] = [
+    { label: booking.package.name, qty: 1, amountCents: booking.package.basePrice },
+  ];
+
+  for (const [slug, qty] of addOnQuantities) {
+    if (qty <= 0) continue;
+    const addOn = addOnBySlug.get(slug);
+    lines.push({
+      label: addOn?.name ?? slug,
+      qty,
+      amountCents: (addOn?.unitPrice ?? 0) * qty,
+    });
+  }
+
+  const totalCents = lines.reduce((sum, line) => sum + line.amountCents, 0);
+
   return (
     <div className="mx-auto max-w-content px-5 py-12 sm:px-8 sm:py-16">
       <div className="max-w-xl">
@@ -30,8 +69,29 @@ export default async function BookingConfirmationPage({ params }: BookingConfirm
         <BookingStatus
           bookingRef={booking.bookingRef}
           initialStatus={booking.status}
-          amountCents={booking.package.basePrice}
+          amountCents={totalCents}
         />
+
+        <div className="mt-8 rounded-2xl border border-line bg-surface p-5">
+          <h2 className="font-display text-base font-bold">Order summary</h2>
+          <div className="mt-3 flex flex-col gap-2">
+            {lines.map((line) => (
+              <div key={line.label} className="flex items-baseline justify-between text-sm">
+                <span>
+                  {line.label}
+                  {line.qty > 1 ? ` × ${line.qty}` : ""}
+                </span>
+                <span className="tabular-nums text-muted">{formatCents(line.amountCents)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
+            <span className="font-semibold">Total</span>
+            <span className="font-display text-xl font-extrabold tabular-nums">
+              {formatCents(totalCents)}
+            </span>
+          </div>
+        </div>
 
         <dl className="mt-8 divide-y divide-line border-t border-line">
           <Row label="Delivery date" value={formatCalendarDate(booking.deliveryDate)} />
