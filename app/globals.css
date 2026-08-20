@@ -37,14 +37,13 @@ body {
   outline-offset: 2px;
 }
 
-/* "Delivery ticket" notch: a dashed tear line spanning the full card width
-   (cancel the card's own padding with matching negative margins), with two
-   punched half-circles at the edges revealing the page background —
-   evokes a torn shipping/rental tag. */
+/* "Delivery ticket" notch: a dashed tear line as a full-width, unpadded
+   child of the (overflow-hidden) card, with two punched half-circles at
+   its edges revealing the page background — evokes a torn shipping tag.
+   No negative margins: this sits between two independently-padded
+   sections, so it can never bleed outside the card's own border. */
 .ticket-tear {
   position: relative;
-  margin-left: -1.5rem;
-  margin-right: -1.5rem;
   border-top: 1px dashed var(--line);
 }
 

@@ -3,6 +3,7 @@ import { Archivo, Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import "./globals.css";
+import { PHONE_DISPLAY, PHONE_TEL_HREF } from "@/lib/siteConfig";
 
 const display = Archivo({
   subsets: ["latin"],
@@ -33,12 +34,20 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Link href="/" className="font-display text-lg font-bold tracking-tight">
               MoveIt<span className="text-accent">Units</span>
             </Link>
-            <Link
-              href="/book"
-              className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-ink"
-            >
-              Book now
-            </Link>
+            <div className="flex flex-col items-end gap-1">
+              <Link
+                href="/book"
+                className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-ink"
+              >
+                Book now
+              </Link>
+              <a
+                href={PHONE_TEL_HREF}
+                className="text-xs font-semibold text-ink underline-offset-2 hover:underline"
+              >
+                {PHONE_DISPLAY}
+              </a>
+            </div>
           </div>
         </header>
 

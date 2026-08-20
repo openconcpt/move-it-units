@@ -53,6 +53,14 @@ export default async function HomePage() {
         </div>
       </section>
 
+      <div className="border-b border-line bg-accent-soft">
+        <div className="mx-auto max-w-content px-5 py-3 sm:px-8">
+          <p className="text-sm font-semibold text-accent-ink">
+            Now serving Palm Beach County, FL.
+          </p>
+        </div>
+      </div>
+
       <section id="packages" className="border-b border-line">
         <div className="mx-auto max-w-content px-5 py-16 sm:px-8 sm:py-24">
           <h2 className="font-display text-2xl font-bold sm:text-3xl">Packages</h2>
@@ -100,8 +108,10 @@ export default async function HomePage() {
               just let us know how much extra time you need.
             </FaqItem>
             <FaqItem question="What areas do you serve?">
-              We deliver within our local service area. Enter your ZIP code on the booking page
-              and we&apos;ll tell you right away whether you&apos;re in range.
+              We currently serve Palm Beach County, FL, except the far-western county (Belle
+              Glade, Pahokee, and South Bay). Enter your ZIP code on the booking page and
+              we&apos;ll tell you right away whether
+              you&apos;re in range.
             </FaqItem>
             <FaqItem question="What if a bin breaks or goes missing?">
               Normal wear is on us. A lost or badly damaged bin or dolly is billed at a flat
