@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { checkPackageAvailability } from "@/lib/availability";
 import { generateBookingRef } from "@/lib/bookingRef";
 import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
+import { isZipInServiceArea, normalizeZip, SERVICE_AREA_CONTACT_EMAIL } from "@/lib/serviceArea";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,12 @@ const createBookingSchema = z
     customerPhone: z.string().trim().min(7).max(20),
     deliveryAddress: z.string().trim().min(1).max(500),
     pickupAddress: z.string().trim().min(1).max(500),
+    deliveryZip: z.string().trim().refine((v) => normalizeZip(v) !== null, {
+      message: "deliveryZip must be a valid 5-digit ZIP code",
+    }),
+    pickupZip: z.string().trim().refine((v) => normalizeZip(v) !== null, {
+      message: "pickupZip must be a valid 5-digit ZIP code",
+    }),
     deliveryDate: z.coerce.date(),
     pickupDate: z.coerce.date(),
   })
@@ -49,6 +56,21 @@ export async function POST(request: Request) {
   }
 
   const input = parsed.data;
+
+  const outOfAreaField = !isZipInServiceArea(input.deliveryZip)
+    ? "delivery"
+    : !isZipInServiceArea(input.pickupZip)
+      ? "pickup"
+      : null;
+
+  if (outOfAreaField) {
+    return NextResponse.json(
+      {
+        error: `We don't deliver to that ${outOfAreaField} ZIP code yet. Email ${SERVICE_AREA_CONTACT_EMAIL} and we'll let you know if we can make an exception.`,
+      },
+      { status: 422 }
+    );
+  }
 
   let booking: BookingWithPackage | null = null;
 
@@ -157,8 +179,8 @@ export async function POST(request: Request) {
         bookingId: booking.id,
         bookingRef: booking.bookingRef,
       },
-      success_url: `${APP_URL}/bookings/${booking.bookingRef}?checkout=success`,
-      cancel_url: `${APP_URL}/bookings/${booking.bookingRef}?checkout=cancelled`,
+      success_url: `${APP_URL}/booking/${booking.bookingRef}`,
+      cancel_url: `${APP_URL}/book`,
       // Computed independently (not reused from booking.expiresAt): Stripe
       // requires this to be >= 30 minutes from ITS OWN creation timestamp,
       // which is a moment later than when we set booking.expiresAt above.
