@@ -4,9 +4,9 @@ import { ADD_ON_SLUGS } from "../lib/addOns";
 const prisma = new PrismaClient();
 
 const packages = [
-  { name: "Studio/1BR", binCount: 20, dollyCount: 2, basePrice: 14900 },
-  { name: "2BR", binCount: 40, dollyCount: 2, basePrice: 19900 },
-  { name: "3BR", binCount: 60, dollyCount: 3, basePrice: 27900 },
+  { slug: "studio-1br", name: "Studio/1BR", binCount: 20, dollyCount: 2, labelCount: 20, basePrice: 14900 },
+  { slug: "2br", name: "2BR", binCount: 40, dollyCount: 2, labelCount: 40, basePrice: 19900 },
+  { slug: "3br", name: "3BR", binCount: 50, dollyCount: 3, labelCount: 50, basePrice: 27900 },
 ];
 
 const addOns = [
@@ -44,7 +44,7 @@ const addOns = [
 async function main() {
   for (const pkg of packages) {
     await prisma.package.upsert({
-      where: { name: pkg.name },
+      where: { slug: pkg.slug },
       update: pkg,
       create: { ...pkg, active: true },
     });

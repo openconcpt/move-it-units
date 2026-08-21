@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   checkAvailability,
+  checkPackageAvailability,
   getOccupiedDateRange,
   DEFAULT_TURNAROUND_BUFFER_DAYS,
   type ExistingBookingInput,
+  type CheckPackageAvailabilityParams,
 } from "../availability";
+import { ADD_ON_SLUGS } from "../addOns";
 
 /** UTC-midnight date helper, e.g. d("2026-01-10"). */
 function d(dateStr: string): Date {
@@ -411,5 +414,52 @@ describe("checkAvailability", () => {
       expect(result.available).toBe(false);
       expect(result.binsShortfallDays).toEqual([d("2026-03-03"), d("2026-03-04")]);
     });
+  });
+});
+
+describe("checkPackageAvailability", () => {
+  /** Minimal fake Prisma client — only the calls checkPackageAvailability actually makes. */
+  function fakeClient(opts: {
+    package: Record<string, unknown> | null;
+    inventoryConfig?: Record<string, unknown> | null;
+    bookings?: Record<string, unknown>[];
+  }) {
+    return {
+      package: { findUnique: async () => opts.package },
+      inventoryConfig: {
+        findUnique: async () => opts.inventoryConfig ?? { id: 1, totalBins: 100, totalDollies: 10, totalBlankets: 0 },
+      },
+      addOn: {
+        findMany: async () => [
+          { slug: ADD_ON_SLUGS.extraBins, binsPerUnit: 10, dolliesPerUnit: 0, blanketsPerUnit: 0 },
+          { slug: ADD_ON_SLUGS.extraDolly, binsPerUnit: 0, dolliesPerUnit: 1, blanketsPerUnit: 0 },
+          { slug: ADD_ON_SLUGS.blankets, binsPerUnit: 0, dolliesPerUnit: 0, blanketsPerUnit: 6 },
+        ],
+      },
+      booking: { findMany: async () => opts.bookings ?? [] },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+  }
+
+  it("ignores labelCount entirely — a huge labelCount does not consume bin or dolly capacity", async () => {
+    // binCount/dollyCount exactly saturate capacity on their own; labelCount
+    // is set absurdly high so any accidental inclusion in the bins/dollies
+    // math would immediately tip this over into unavailable.
+    const client = fakeClient({
+      package: { id: "pkg_1", active: true, binCount: 5, dollyCount: 1, labelCount: 9999 },
+      inventoryConfig: { id: 1, totalBins: 5, totalDollies: 1, totalBlankets: 0 },
+    });
+
+    const params: CheckPackageAvailabilityParams = {
+      packageId: "pkg_1",
+      deliveryDate: d("2026-07-01"),
+      pickupDate: d("2026-07-02"),
+    };
+
+    const result = await checkPackageAvailability(client, params);
+
+    expect(result.available).toBe(true);
+    expect(result.binsShortfallDays).toEqual([]);
+    expect(result.dolliesShortfallDays).toEqual([]);
   });
 });

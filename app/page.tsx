@@ -31,11 +31,11 @@ export default async function HomePage() {
   return (
     <>
       <section className="border-b border-line">
-        <div className="mx-auto max-w-content px-5 py-16 sm:px-8 sm:py-24">
-          <h1 className="max-w-2xl font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+        <div className="mx-auto max-w-container px-6 py-16 md:px-10 md:py-24">
+          <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
             No boxes. No tape. No cardboard pile in your garage after.
           </h1>
-          <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
+          <p className="mt-6 max-w-prose text-lg leading-relaxed text-muted">
             We deliver clean, stackable bins to your door. You pack at your own pace. We pick
             them up when you&apos;re done.
           </p>
@@ -54,7 +54,7 @@ export default async function HomePage() {
       </section>
 
       <div className="border-b border-line bg-accent-soft">
-        <div className="mx-auto max-w-content px-5 py-3 sm:px-8">
+        <div className="mx-auto max-w-container px-6 py-3 md:px-10">
           <p className="text-sm font-semibold text-accent-ink">
             Now serving Palm Beach County, FL.
           </p>
@@ -62,9 +62,9 @@ export default async function HomePage() {
       </div>
 
       <section id="packages" className="border-b border-line">
-        <div className="mx-auto max-w-content px-5 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto max-w-container px-6 py-16 md:px-10 md:py-24">
           <h2 className="font-display text-2xl font-bold sm:text-3xl">Packages</h2>
-          <p className="mt-2 max-w-xl text-muted">
+          <p className="mt-2 text-muted">
             Every package includes delivery, one week of use, and pickup.
           </p>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -75,15 +75,20 @@ export default async function HomePage() {
                 name={pkg.name}
                 binCount={pkg.binCount}
                 dollyCount={pkg.dollyCount}
+                labelCount={pkg.labelCount}
                 basePrice={pkg.basePrice}
               />
             ))}
           </div>
+          <p className="mt-6 text-sm text-muted">
+            Plastic bins can&apos;t be written on like cardboard, so every kit ships with labels
+            to mark what&apos;s in each one.
+          </p>
         </div>
       </section>
 
       <section className="border-b border-line">
-        <div className="mx-auto max-w-content px-5 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto max-w-container px-6 py-16 md:px-10 md:py-24">
           <h2 className="font-display text-2xl font-bold sm:text-3xl">How it works</h2>
           <ol className="mt-10 grid gap-10 sm:grid-cols-3 sm:gap-6">
             {STEPS.map((step, index) => (
@@ -100,9 +105,9 @@ export default async function HomePage() {
       </section>
 
       <section>
-        <div className="mx-auto max-w-content px-5 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto max-w-container px-6 py-16 md:px-10 md:py-24">
           <h2 className="font-display text-2xl font-bold sm:text-3xl">Questions</h2>
-          <div className="mt-8 max-w-2xl">
+          <div className="mt-8 max-w-prose">
             <FaqItem question="What if I need the bins longer than a week?">
               It&apos;s $10 per day, billed automatically to the card on file. No need to call —
               just let us know how much extra time you need.

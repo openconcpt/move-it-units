@@ -1,31 +1,33 @@
 import Link from "next/link";
 import { formatCents } from "@/lib/format";
+import { PackageSpecLines } from "@/components/PackageSpecLines";
 
 interface PackageCardProps {
   id: string;
   name: string;
   binCount: number;
   dollyCount: number;
+  labelCount: number;
   basePrice: number;
 }
 
-export function PackageCard({ id, name, binCount, dollyCount, basePrice }: PackageCardProps) {
+export function PackageCard({ id, name, binCount, dollyCount, labelCount, basePrice }: PackageCardProps) {
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-surface">
       <div className="p-6">
         <h3 className="font-display text-xl font-bold">{name}</h3>
-        <p className="mt-1 font-mono text-sm tabular-nums text-muted">
-          {binCount} bins &middot; {dollyCount} {dollyCount === 1 ? "dolly" : "dollies"}
-        </p>
+        <PackageSpecLines
+          binCount={binCount}
+          dollyCount={dollyCount}
+          labelCount={labelCount}
+          className="mt-1 flex flex-col gap-0.5"
+        />
       </div>
 
       <div className="ticket-tear" />
 
       <div className="flex flex-col p-6">
-        <p className="font-display text-4xl font-extrabold tracking-tight">
-          {formatCents(basePrice)}
-          <span className="font-sans text-base font-medium text-muted"> /week</span>
-        </p>
+        <p className="font-display text-4xl font-extrabold tracking-tight">{formatCents(basePrice)}</p>
         <p className="mt-2 text-sm text-muted">1 week included &middot; delivery &amp; pickup included</p>
 
         <Link

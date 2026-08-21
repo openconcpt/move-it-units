@@ -25,6 +25,12 @@ const config: Config = {
         sans: ["var(--font-body)", "system-ui", "sans-serif"],
       },
       maxWidth: {
+        // Shared width tokens — every section on the landing page uses one
+        // of these two, never an ad-hoc max-w-*. `container` is the page's
+        // outer measure; `prose` nests inside it for long-line-length text.
+        container: "1120px",
+        prose: "720px",
+        // Still used by /book and the booking confirmation page.
         content: "72rem",
       },
     },

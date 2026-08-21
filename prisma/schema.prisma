@@ -18,9 +18,14 @@ enum BookingStatus {
 
 model Package {
   id         String   @id @default(cuid())
+  slug       String   @unique
   name       String   @unique
   binCount   Int
   dollyCount Int
+  // Consumable that ships with the bins and isn't returned — display and
+  // fulfillment data only. Must never enter availability/capacity math (see
+  // lib/availability.ts).
+  labelCount Int
   basePrice  Int // cents
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())

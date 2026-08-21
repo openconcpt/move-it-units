@@ -20,7 +20,7 @@ const body = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "MoveItUnits — Moving bins, delivered",
+  title: "Move It Units — Moving bins, delivered",
   description:
     "Clean moving bins delivered to your door, picked up when you're done. No boxes to buy, no tape, no cardboard pile in your garage afterward.",
 };
@@ -30,9 +30,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={`h-full antialiased ${display.variable} ${body.variable}`}>
       <body className="flex min-h-full flex-col bg-paper font-sans text-ink">
         <header className="border-b border-line bg-paper">
-          <div className="mx-auto flex max-w-content items-center justify-between px-5 py-4 sm:px-8">
+          <div className="mx-auto flex max-w-container items-center justify-between px-6 py-4 md:px-10">
             <Link href="/" className="font-display text-lg font-bold tracking-tight">
-              MoveIt<span className="text-accent">Units</span>
+              Move It <span className="text-accent">Units</span>
             </Link>
             <div className="flex flex-col items-end gap-1">
               <Link
@@ -54,8 +54,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <main className="flex-1">{children}</main>
 
         <footer className="border-t border-line bg-paper">
-          <div className="mx-auto max-w-content px-5 py-8 text-sm text-muted sm:px-8">
-            <p>MoveItUnits — clean bins, delivered and picked up. No cardboard required.</p>
+          <div className="mx-auto max-w-container px-6 py-8 text-sm text-muted md:px-10">
+            <p>Move It Units — clean bins, delivered and picked up. No cardboard required.</p>
           </div>
         </footer>
       </body>

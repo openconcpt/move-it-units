@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { formatCents } from "@/lib/format";
 import { isZipInServiceArea, normalizeZip, SERVICE_AREA_CONTACT_EMAIL } from "@/lib/serviceArea";
 import { ADD_ON_SLUGS, type AddOnSlug } from "@/lib/addOns";
+import { PackageSpecLines } from "@/components/PackageSpecLines";
 
 interface PackageOption {
   id: string;
   name: string;
   binCount: number;
   dollyCount: number;
+  labelCount: number;
   basePrice: number;
 }
 
@@ -244,11 +246,20 @@ export function BookingForm({ packages, addOns, preselectedPackageId }: BookingF
           >
             {packages.map((pkg) => (
               <option key={pkg.id} value={pkg.id}>
-                {pkg.name} — {formatCents(pkg.basePrice)}/week
+                {pkg.name} — {formatCents(pkg.basePrice)}
               </option>
             ))}
           </select>
         </Field>
+
+        {selectedPackage && (
+          <PackageSpecLines
+            binCount={selectedPackage.binCount}
+            dollyCount={selectedPackage.dollyCount}
+            labelCount={selectedPackage.labelCount}
+            className="-mt-2 flex flex-col gap-0.5"
+          />
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Delivery date">
