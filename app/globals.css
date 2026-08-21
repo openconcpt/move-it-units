@@ -8,9 +8,10 @@
   --ink: #171a1a;
   --muted: #5b6360;
   --line: #e2e0d8;
-  --accent: #1f6f5c;
-  --accent-ink: #163f35;
-  --accent-soft: #e5efec;
+  --structural: #6b7370;
+  --accent: #1f6fc4;
+  --accent-ink: #1a436e;
+  --accent-soft: #e5eff8;
   --danger: #a3372c;
 }
 

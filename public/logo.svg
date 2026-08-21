@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Move It Units">
+  <g fill="#6B7370">
+    <!-- slim attached lid, split at the centre -->
+    <rect x="3" y="16" width="24" height="6" rx="1.2"/>
+    <rect x="37" y="16" width="24" height="6" rx="1.2"/>
+    <!-- tapered body -->
+    <path d="M8 24 H56 L49.5 55.5 A2 2 0 0 1 47.5 57 H16.5 A2 2 0 0 1 14.5 55.5 Z"/>
+  </g>
+  <!-- tie, threaded through the lid -->
+  <rect x="30" y="11" width="4" height="19" rx="1.5" fill="#1F6FC4"/>
+  <!-- write-on flag: blue frame, white panel -->
+  <rect x="20" y="28" width="24" height="15" rx="2.5" fill="#1F6FC4"/>
+  <rect x="23.5" y="31" width="17" height="9" rx="1.2" fill="#FFFFFF"/>
+</svg>
