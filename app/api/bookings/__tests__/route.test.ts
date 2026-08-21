@@ -317,9 +317,9 @@ describe("POST /api/bookings — timePreference", () => {
 
 describe("POST /api/bookings — extension pricing", () => {
   it("adds a distinct Stripe line item for extension days when the stay runs past the included week", async () => {
-    // 2026-09-01 through 2026-09-08 inclusive = 8 days -> 1 extension day.
+    // 2026-09-01 to 2026-09-09 is 8 days apart (hotel-nights style) -> 1 extension day.
     const res = await POST(
-      makeRequest(validBody({ deliveryDate: "2026-09-01", pickupDate: "2026-09-08" }))
+      makeRequest(validBody({ deliveryDate: "2026-09-01", pickupDate: "2026-09-09" }))
     );
     expect(res.status).toBe(201);
 
@@ -339,7 +339,7 @@ describe("POST /api/bookings — extension pricing", () => {
   });
 
   it("does not add an extension line item for a stay within the included week", async () => {
-    const res = await POST(makeRequest(validBody())); // default: 2026-09-01 to 2026-09-05, 5 days
+    const res = await POST(makeRequest(validBody())); // default: 2026-09-01 to 2026-09-05, 4 days apart
     expect(res.status).toBe(201);
 
     const call = createCheckoutSession.mock.calls[0][0];
@@ -354,7 +354,7 @@ describe("POST /api/bookings — extension pricing", () => {
       makeRequest(
         validBody({
           deliveryDate: "2026-09-01",
-          pickupDate: "2026-09-08", // 8 days -> 1 extension day, server-side truth
+          pickupDate: "2026-09-09", // 8 days apart -> 1 extension day, server-side truth
           totalCents: 1,
           extensionCost: 999999,
           extensionDays: 0,

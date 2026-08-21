@@ -189,7 +189,7 @@ describe("sendBookingConfirmationEmails", () => {
     const prisma = fakePrisma();
     const longBooking = fakeBooking({
       deliveryDate: new Date("2026-09-01T00:00:00.000Z"),
-      pickupDate: new Date("2026-09-08T00:00:00.000Z"), // 8 days -> 1 extension day
+      pickupDate: new Date("2026-09-09T00:00:00.000Z"), // 8 days apart -> 1 extension day
     });
 
     await sendBookingConfirmationEmails(prisma, longBooking, 17800 + 1000);
@@ -204,7 +204,7 @@ describe("sendBookingConfirmationEmails", () => {
 
   it("omits the extra-days line for a stay within the included week", async () => {
     const prisma = fakePrisma();
-    await sendBookingConfirmationEmails(prisma, fakeBooking(), 17800); // default booking is 5 days
+    await sendBookingConfirmationEmails(prisma, fakeBooking(), 17800); // default booking is 4 days apart
 
     const [customerCall] = sendMock.mock.calls.map((c) => c[0]);
     expect(customerCall.html).not.toContain("Extra days:");
