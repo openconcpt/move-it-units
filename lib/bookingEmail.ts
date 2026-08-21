@@ -4,13 +4,14 @@ import { getEmailConfig } from "./emailConfig";
 import { formatCalendarDate, formatCents } from "./format";
 import { ADD_ON_SLUGS, type AddOnSlug } from "./addOns";
 import { TIME_PREFERENCE_EXPECTATION_COPY } from "./timePreference";
-import { PHONE_DISPLAY } from "./siteConfig";
+import { computeExtensionPricing } from "./pricing";
+import { PHONE_DISPLAY, EXTENSION_DAILY_RATE_CENTS } from "./siteConfig";
 
 export type BookingForEmail = Prisma.BookingGetPayload<{ include: { package: true } }>;
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 
-const EXTENSION_RATE_LINE = "Extension rate: $10 per day past the included week, charged to the card on file.";
+const EXTENSION_RATE_LINE = `Extension rate: ${formatCents(EXTENSION_DAILY_RATE_CENTS)} per day past the included week, charged to the card on file.`;
 const REPLACEMENT_FEE_LINE = "Replacement fees: $40 per bin, $80 per dolly.";
 
 interface AddOnLine {
@@ -33,6 +34,8 @@ interface BookingEmailData {
   pickupAddress: string;
   pickupZip: string;
   addOnLines: AddOnLine[];
+  extensionDays: number;
+  extensionCostCents: number;
   totalPaid: string;
   customerName: string;
   customerEmail: string;
@@ -75,6 +78,7 @@ async function buildBookingEmailData(
   amountTotalCents: number
 ): Promise<BookingEmailData> {
   const addOnLines = await buildAddOnLines(prisma, booking);
+  const extensionPricing = computeExtensionPricing(booking.deliveryDate, booking.pickupDate);
 
   return {
     bookingRef: booking.bookingRef,
@@ -90,6 +94,8 @@ async function buildBookingEmailData(
     pickupAddress: booking.pickupAddress,
     pickupZip: extractZip(booking.pickupAddress),
     addOnLines,
+    extensionDays: extensionPricing.extensionDays,
+    extensionCostCents: extensionPricing.extensionCost,
     totalPaid: formatCents(amountTotalCents),
     customerName: booking.customerName,
     customerEmail: booking.customerEmail,
@@ -119,6 +125,19 @@ function addOnLinesText(lines: AddOnLine[]): string {
   return ["Add-ons:", ...lines.map((l) => `  - ${l.name} x${l.qty} — ${formatCents(l.lineTotalCents)}`)].join("\n");
 }
 
+/** Empty string when there's no extension, so it drops out of the HTML cleanly. */
+function extensionLineHtml(data: BookingEmailData): string {
+  if (data.extensionDays === 0) return "";
+  const dayWord = data.extensionDays === 1 ? "day" : "days";
+  return `<p style="margin: 16px 0 4px;">Extra days: ${data.extensionDays} ${dayWord} at ${formatCents(EXTENSION_DAILY_RATE_CENTS)}/day — ${formatCents(data.extensionCostCents)}</p>`;
+}
+
+function extensionLineText(data: BookingEmailData): string | null {
+  if (data.extensionDays === 0) return null;
+  const dayWord = data.extensionDays === 1 ? "day" : "days";
+  return `Extra days: ${data.extensionDays} ${dayWord} at ${formatCents(EXTENSION_DAILY_RATE_CENTS)}/day — ${formatCents(data.extensionCostCents)}`;
+}
+
 interface RenderedEmail {
   subject: string;
   html: string;
@@ -138,6 +157,7 @@ function renderCustomerEmail(data: BookingEmailData): RenderedEmail {
   <p style="margin: 0 0 4px;"><strong>Pickup:</strong> ${data.pickupDate}<br>${escapeHtml(data.pickupAddress)}</p>
 
   <div style="margin: 16px 0 4px;">${addOnLinesHtml(data.addOnLines)}</div>
+  ${extensionLineHtml(data)}
 
   <p style="margin: 16px 0 4px;"><strong>Total paid:</strong> ${data.totalPaid}</p>
 
@@ -164,6 +184,7 @@ function renderCustomerEmail(data: BookingEmailData): RenderedEmail {
     "",
     addOnLinesText(data.addOnLines),
     "",
+    ...(extensionLineText(data) ? [extensionLineText(data)!, ""] : []),
     `Total paid: ${data.totalPaid}`,
     "",
     TIME_PREFERENCE_EXPECTATION_COPY,
@@ -191,6 +212,7 @@ function renderOperatorEmail(data: BookingEmailData): RenderedEmail {
   <p style="margin: 0 0 4px;"><strong>Pickup:</strong> ${data.pickupDate}<br>${escapeHtml(data.pickupAddress)}</p>
 
   <div style="margin: 16px 0 4px;">${addOnLinesHtml(data.addOnLines)}</div>
+  ${extensionLineHtml(data)}
 
   <p style="margin: 16px 0 4px;"><strong>Total paid:</strong> ${data.totalPaid}</p>
   <p style="margin: 0;"><a href="${data.bookingUrl}">${data.bookingUrl}</a></p>
@@ -211,6 +233,7 @@ function renderOperatorEmail(data: BookingEmailData): RenderedEmail {
     "",
     addOnLinesText(data.addOnLines),
     "",
+    ...(extensionLineText(data) ? [extensionLineText(data)!, ""] : []),
     `Total paid: ${data.totalPaid}`,
     data.bookingUrl,
   ].join("\n");

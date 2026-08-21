@@ -415,6 +415,42 @@ describe("checkAvailability", () => {
       expect(result.binsShortfallDays).toEqual([d("2026-03-03"), d("2026-03-04")]);
     });
   });
+
+  describe("reservation spans the full booking length, not a fixed window", () => {
+    it("a long booking still holds capacity on a day far past what a fixed week-plus-buffer window would cover", () => {
+      // Existing booking spans 2026-05-01 through 2026-05-14 (14 days) using
+      // all 20 bins. A hard-coded "delivery + 7 days + 1 buffer" window would
+      // only reserve through 2026-05-09 — 2026-05-12 is well past that, so
+      // this only conflicts if the *actual* full span is honored.
+      const existing = [
+        booking({ deliveryDate: "2026-05-01", pickupDate: "2026-05-14", binCount: 20, dollyCount: 1 }),
+      ];
+
+      const result = checkAvailability(
+        { deliveryDate: d("2026-05-12"), pickupDate: d("2026-05-12"), binCount: 1, dollyCount: 1 },
+        existing,
+        inventory
+      );
+
+      expect(result.available).toBe(false);
+      expect(result.binsShortfallDays).toContainEqual(d("2026-05-12"));
+    });
+
+    it("frees capacity again the day after the long booking's own span plus buffer ends", () => {
+      const existing = [
+        booking({ deliveryDate: "2026-05-01", pickupDate: "2026-05-14", binCount: 20, dollyCount: 1 }),
+      ];
+
+      // Occupied through 2026-05-14 + 1 buffer day = 2026-05-15. The 16th is clear.
+      const result = checkAvailability(
+        { deliveryDate: d("2026-05-16"), pickupDate: d("2026-05-16"), binCount: 20, dollyCount: 1 },
+        existing,
+        inventory
+      );
+
+      expect(result.available).toBe(true);
+    });
+  });
 });
 
 describe("checkPackageAvailability", () => {

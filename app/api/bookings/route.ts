@@ -9,6 +9,9 @@ import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
 import { isZipInServiceArea, normalizeZip, SERVICE_AREA_CONTACT_EMAIL } from "@/lib/serviceArea";
 import { ADD_ON_SLUGS, type AddOnSlug } from "@/lib/addOns";
 import { TIME_PREFERENCE_VALUES, DEFAULT_TIME_PREFERENCE } from "@/lib/timePreference";
+import { computeExtensionPricing } from "@/lib/pricing";
+import { EXTENSION_DAILY_RATE_CENTS } from "@/lib/siteConfig";
+import { formatCents } from "@/lib/format";
 
 export const runtime = "nodejs";
 
@@ -70,6 +73,11 @@ export async function POST(request: Request) {
   }
 
   const input = parsed.data;
+
+  // Authoritative — computed from the validated dates, never from anything
+  // the client sent. createBookingSchema has no "total" field at all, so a
+  // client-supplied one is silently dropped by zod before we ever see it.
+  const extensionPricing = computeExtensionPricing(input.deliveryDate, input.pickupDate);
 
   const requestedAddOns: RequestedAddOn[] = [
     { slug: ADD_ON_SLUGS.extraBins, quantity: input.extraBinPacks },
@@ -225,6 +233,22 @@ export async function POST(request: Request) {
           unit_amount: addOn.unitPrice,
         },
         quantity,
+      });
+    }
+
+    // A distinct line item, not merged into the package price, so the
+    // customer sees exactly what the extra days cost.
+    if (extensionPricing.extensionDays > 0) {
+      const dayWord = extensionPricing.extensionDays === 1 ? "day" : "days";
+      lineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: `${extensionPricing.extensionDays} extra ${dayWord} at ${formatCents(EXTENSION_DAILY_RATE_CENTS)}/day`,
+          },
+          unit_amount: EXTENSION_DAILY_RATE_CENTS,
+        },
+        quantity: extensionPricing.extensionDays,
       });
     }
 

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { formatCalendarDate, formatCents } from "@/lib/format";
 import { ADD_ON_SLUGS, type AddOnSlug } from "@/lib/addOns";
 import { TIME_PREFERENCE_EXPECTATION_COPY } from "@/lib/timePreference";
+import { computeExtensionPricing } from "@/lib/pricing";
+import { EXTENSION_DAILY_RATE_CENTS } from "@/lib/siteConfig";
 import { BookingStatus } from "./BookingStatus";
 
 // NO_PREFERENCE is intentionally omitted — that row doesn't render at all.
@@ -61,6 +63,15 @@ export default async function BookingConfirmationPage({ params }: BookingConfirm
       label: addOn?.name ?? slug,
       qty,
       amountCents: (addOn?.unitPrice ?? 0) * qty,
+    });
+  }
+
+  const extensionPricing = computeExtensionPricing(booking.deliveryDate, booking.pickupDate);
+  if (extensionPricing.extensionDays > 0) {
+    lines.push({
+      label: `Extra days (${formatCents(EXTENSION_DAILY_RATE_CENTS)}/day)`,
+      qty: extensionPricing.extensionDays,
+      amountCents: extensionPricing.extensionCost,
     });
   }
 

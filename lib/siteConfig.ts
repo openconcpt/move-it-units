@@ -3,3 +3,6 @@
 export const PHONE_DISPLAY = "(561) 888-0801";
 export const PHONE_TEL_HREF = "tel:+15618880801";
 export const CONTACT_EMAIL = "contact@moveitunits.com";
+
+// Cents, per day past the included week — see lib/pricing.ts.
+export const EXTENSION_DAILY_RATE_CENTS = 1000;

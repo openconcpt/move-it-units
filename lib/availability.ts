@@ -1,5 +1,6 @@
 import type { PrismaClientOrTransaction } from "./prisma";
 import { ADD_ON_SLUGS } from "./addOns";
+import { toUTCDateOnly } from "./dates";
 
 export type BookingStatus =
   | "pending"
@@ -50,13 +51,6 @@ export interface AvailabilityResult {
 interface DateRange {
   start: Date;
   end: Date;
-}
-
-/** Truncates a Date to a UTC calendar day, discarding any time-of-day component. */
-function toUTCDateOnly(date: Date): Date {
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
-  );
 }
 
 function addDays(date: Date, days: number): Date {

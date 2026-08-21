@@ -314,3 +314,72 @@ describe("POST /api/bookings — timePreference", () => {
     expect(createBooking).not.toHaveBeenCalled();
   });
 });
+
+describe("POST /api/bookings — extension pricing", () => {
+  it("adds a distinct Stripe line item for extension days when the stay runs past the included week", async () => {
+    // 2026-09-01 through 2026-09-08 inclusive = 8 days -> 1 extension day.
+    const res = await POST(
+      makeRequest(validBody({ deliveryDate: "2026-09-01", pickupDate: "2026-09-08" }))
+    );
+    expect(res.status).toBe(201);
+
+    expect(createCheckoutSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        line_items: expect.arrayContaining([
+          expect.objectContaining({
+            quantity: 1,
+            price_data: expect.objectContaining({
+              unit_amount: 1000,
+              product_data: expect.objectContaining({ name: expect.stringContaining("1 extra day") }),
+            }),
+          }),
+        ]),
+      })
+    );
+  });
+
+  it("does not add an extension line item for a stay within the included week", async () => {
+    const res = await POST(makeRequest(validBody())); // default: 2026-09-01 to 2026-09-05, 5 days
+    expect(res.status).toBe(201);
+
+    const call = createCheckoutSession.mock.calls[0][0];
+    const hasExtensionLine = call.line_items.some((li: { price_data: { unit_amount: number } }) =>
+      li.price_data.unit_amount === 1000
+    );
+    expect(hasExtensionLine).toBe(false);
+  });
+
+  it("ignores a client-supplied total or extension override in the request body — the server recomputes from the dates", async () => {
+    const res = await POST(
+      makeRequest(
+        validBody({
+          deliveryDate: "2026-09-01",
+          pickupDate: "2026-09-08", // 8 days -> 1 extension day, server-side truth
+          totalCents: 1,
+          extensionCost: 999999,
+          extensionDays: 0,
+        })
+      )
+    );
+    expect(res.status).toBe(201);
+
+    // The server still charged for the real 1 extension day at the real
+    // rate — the injected fields had no effect (createBookingSchema has no
+    // slot for them, so zod drops them before this code ever sees them).
+    expect(createCheckoutSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        line_items: expect.arrayContaining([
+          expect.objectContaining({
+            quantity: 1,
+            price_data: expect.objectContaining({ unit_amount: 1000 }),
+          }),
+        ]),
+      })
+    );
+    expect(createBooking).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.not.objectContaining({ totalCents: expect.anything() }),
+      })
+    );
+  });
+});

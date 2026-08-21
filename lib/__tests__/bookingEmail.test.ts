@@ -185,6 +185,32 @@ describe("sendBookingConfirmationEmails", () => {
     expect(customerCall.html).toContain("Blanket pack");
   });
 
+  it("includes an extra-days line when the stay runs past the included week, and omits it when it doesn't", async () => {
+    const prisma = fakePrisma();
+    const longBooking = fakeBooking({
+      deliveryDate: new Date("2026-09-01T00:00:00.000Z"),
+      pickupDate: new Date("2026-09-08T00:00:00.000Z"), // 8 days -> 1 extension day
+    });
+
+    await sendBookingConfirmationEmails(prisma, longBooking, 17800 + 1000);
+
+    const [customerCall, operatorCall] = sendMock.mock.calls.map((c) => c[0]);
+    for (const body of [customerCall.html, customerCall.text, operatorCall.html, operatorCall.text]) {
+      expect(body).toContain("Extra days");
+      expect(body).toContain("1 day");
+      expect(body).toContain("$10");
+    }
+  });
+
+  it("omits the extra-days line for a stay within the included week", async () => {
+    const prisma = fakePrisma();
+    await sendBookingConfirmationEmails(prisma, fakeBooking(), 17800); // default booking is 5 days
+
+    const [customerCall] = sendMock.mock.calls.map((c) => c[0]);
+    expect(customerCall.html).not.toContain("Extra days:");
+    expect(customerCall.text).not.toContain("Extra days:");
+  });
+
   it("skips sending entirely when required email config is missing, and logs an error", async () => {
     vi.stubEnv("RESEND_API_KEY", "");
     const prisma = fakePrisma();

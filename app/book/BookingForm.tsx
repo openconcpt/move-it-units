@@ -11,6 +11,8 @@ import {
   TIME_PREFERENCE_OPTIONS,
   type TimePreference,
 } from "@/lib/timePreference";
+import { computeExtensionPricing } from "@/lib/pricing";
+import { EXTENSION_DAILY_RATE_CENTS } from "@/lib/siteConfig";
 
 interface PackageOption {
   id: string;
@@ -115,6 +117,14 @@ export function BookingForm({ packages, addOns, preselectedPackageId }: BookingF
   const datesLookValid =
     deliveryDate !== "" && pickupDate !== "" && pickupDate >= deliveryDate;
 
+  // Client-side preview only — mirrors lib/pricing.ts exactly, but the
+  // authoritative charge is always recomputed server-side from the dates in
+  // the request, never trusted from here.
+  const extensionPricing = useMemo(
+    () => (datesLookValid ? computeExtensionPricing(new Date(deliveryDate), new Date(pickupDate)) : null),
+    [datesLookValid, deliveryDate, pickupDate]
+  );
+
   // Debounced live availability check whenever the package, dates, or any
   // add-on quantity changes.
   useEffect(() => {
@@ -180,7 +190,9 @@ export function BookingForm({ packages, addOns, preselectedPackageId }: BookingF
     .filter((line) => line.qty > 0);
 
   const totalCents =
-    (selectedPackage?.basePrice ?? 0) + addOnLines.reduce((sum, line) => sum + line.lineTotal, 0);
+    (selectedPackage?.basePrice ?? 0) +
+    addOnLines.reduce((sum, line) => sum + line.lineTotal, 0) +
+    (extensionPricing?.extensionCost ?? 0);
 
   const canSubmit =
     selectedPackage !== null &&
@@ -457,6 +469,15 @@ export function BookingForm({ packages, addOns, preselectedPackageId }: BookingF
                 <span className="tabular-nums">{formatCents(lineTotal)}</span>
               </div>
             ))}
+            {extensionPricing && extensionPricing.extensionDays > 0 && (
+              <div className="flex items-baseline justify-between text-sm text-muted">
+                <span>
+                  {extensionPricing.extensionDays} extra {extensionPricing.extensionDays === 1 ? "day" : "days"} at{" "}
+                  {formatCents(EXTENSION_DAILY_RATE_CENTS)}/day
+                </span>
+                <span className="tabular-nums">{formatCents(extensionPricing.extensionCost)}</span>
+              </div>
+            )}
           </div>
 
           <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
@@ -466,8 +487,8 @@ export function BookingForm({ packages, addOns, preselectedPackageId }: BookingF
             </span>
           </div>
           <p className="mt-2 text-sm text-muted">
-            Covers delivery, one week of use, and pickup. Extra days are $10/day, billed to the
-            card on file.
+            Covers delivery, one week of use, and pickup. Extra days are {formatCents(EXTENSION_DAILY_RATE_CENTS)}/day,
+            billed to the card on file. This is an estimate — the exact total is confirmed at checkout.
           </p>
         </div>
       )}
