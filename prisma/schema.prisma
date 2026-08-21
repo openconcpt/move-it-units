@@ -16,6 +16,12 @@ enum BookingStatus {
   cancelled
 }
 
+enum TimePreference {
+  MORNING
+  AFTERNOON
+  NO_PREFERENCE
+}
+
 model Package {
   id         String   @id @default(cuid())
   slug       String   @unique
@@ -53,6 +59,11 @@ model Booking {
   deliveryDate DateTime
   pickupDate   DateTime
 
+  // Non-binding routing hint, shared by both trips — see lib/availability.ts,
+  // which must never read this. Two bookings with the same preference on the
+  // same date are not in conflict; only bin/dolly capacity determines that.
+  timePreference TimePreference @default(NO_PREFERENCE)
+
   status BookingStatus @default(pending)
 
   // Only meaningful while status = pending: past this instant, the booking
@@ -63,6 +74,11 @@ model Booking {
   stripeSessionId       String? @unique
   stripePaymentIntentId String?
   stripePaymentMethodId String?
+
+  // Idempotency gate for the two confirmation emails (see lib/bookingEmail.ts):
+  // set atomically, in the same transaction that marks the booking confirmed,
+  // only when still null. A booking must never receive two confirmation emails.
+  confirmationEmailSentAt DateTime?
 
   // Add-on quantities. These consume fleet capacity (see lib/availability.ts
   // and lib/addOns.ts for the per-unit multipliers) and must always flow

@@ -1,8 +1,16 @@
 import { notFound } from "next/navigation";
+import type { TimePreference } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatCalendarDate, formatCents } from "@/lib/format";
 import { ADD_ON_SLUGS, type AddOnSlug } from "@/lib/addOns";
+import { TIME_PREFERENCE_EXPECTATION_COPY } from "@/lib/timePreference";
 import { BookingStatus } from "./BookingStatus";
+
+// NO_PREFERENCE is intentionally omitted — that row doesn't render at all.
+const TIME_PREFERENCE_CONFIRMATION_TEXT: Partial<Record<TimePreference, string>> = {
+  MORNING: "Prefers mornings",
+  AFTERNOON: "Prefers afternoons",
+};
 
 interface BookingConfirmationPageProps {
   params: Promise<{ ref: string }>;
@@ -96,6 +104,16 @@ export default async function BookingConfirmationPage({ params }: BookingConfirm
         <dl className="mt-8 divide-y divide-line border-t border-line">
           <Row label="Delivery date" value={formatCalendarDate(booking.deliveryDate)} />
           <Row label="Pickup date" value={formatCalendarDate(booking.pickupDate)} />
+          {TIME_PREFERENCE_CONFIRMATION_TEXT[booking.timePreference] && (
+            <Row
+              label="Time preference"
+              value={TIME_PREFERENCE_CONFIRMATION_TEXT[booking.timePreference]!}
+            />
+          )}
+        </dl>
+        <p className="mt-4 text-sm text-muted">{TIME_PREFERENCE_EXPECTATION_COPY}</p>
+
+        <dl className="mt-8 divide-y divide-line border-t border-line">
           <Row label="Delivery address" value={booking.deliveryAddress} />
           <Row label="Pickup address" value={booking.pickupAddress} />
         </dl>

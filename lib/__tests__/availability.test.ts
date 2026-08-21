@@ -462,4 +462,77 @@ describe("checkPackageAvailability", () => {
     expect(result.binsShortfallDays).toEqual([]);
     expect(result.dolliesShortfallDays).toEqual([]);
   });
+
+  it("produces identical results regardless of an existing booking's timePreference", async () => {
+    // 15 (existing) + 10 (extra-bin-pack per multipliers below) = 25 > 20
+    // total bins — a genuine capacity conflict, unrelated to time of day.
+    const scenario = (timePreference: string) =>
+      fakeClient({
+        package: { id: "pkg_1", active: true, binCount: 10, dollyCount: 1 },
+        inventoryConfig: { id: 1, totalBins: 20, totalDollies: 5, totalBlankets: 0 },
+        bookings: [
+          {
+            id: "existing_1",
+            deliveryDate: d("2026-07-01"),
+            pickupDate: d("2026-07-05"),
+            status: "confirmed",
+            timePreference,
+            package: { binCount: 15, dollyCount: 1 },
+            extraBinPacks: 0,
+            extraDollies: 0,
+            blanketPacks: 0,
+            expiresAt: null,
+          },
+        ],
+      });
+
+    const params: CheckPackageAvailabilityParams = {
+      packageId: "pkg_1",
+      deliveryDate: d("2026-07-02"),
+      pickupDate: d("2026-07-03"),
+      extraBinPacks: 1,
+    };
+
+    const morning = await checkPackageAvailability(scenario("MORNING"), params);
+    const afternoon = await checkPackageAvailability(scenario("AFTERNOON"), params);
+    const noPreference = await checkPackageAvailability(scenario("NO_PREFERENCE"), params);
+
+    expect(morning).toEqual(afternoon);
+    expect(morning).toEqual(noPreference);
+    // Sanity check this scenario is actually exercising a real conflict —
+    // otherwise "identical results" would be true trivially.
+    expect(morning.available).toBe(false);
+    expect(morning.reason).toContain("bins");
+  });
+
+  it("two bookings both requesting MORNING on the same date are not in conflict — only capacity is", async () => {
+    // Existing MORNING booking uses well under capacity; a second MORNING
+    // request on the same dates must be allowed purely because it fits.
+    const client = fakeClient({
+      package: { id: "pkg_1", active: true, binCount: 5, dollyCount: 1 },
+      inventoryConfig: { id: 1, totalBins: 100, totalDollies: 10, totalBlankets: 0 },
+      bookings: [
+        {
+          id: "existing_1",
+          deliveryDate: d("2026-07-10"),
+          pickupDate: d("2026-07-12"),
+          status: "confirmed",
+          timePreference: "MORNING",
+          package: { binCount: 5, dollyCount: 1 },
+          extraBinPacks: 0,
+          extraDollies: 0,
+          blanketPacks: 0,
+          expiresAt: null,
+        },
+      ],
+    });
+
+    const result = await checkPackageAvailability(client, {
+      packageId: "pkg_1",
+      deliveryDate: d("2026-07-10"),
+      pickupDate: d("2026-07-12"),
+    });
+
+    expect(result.available).toBe(true);
+  });
 });

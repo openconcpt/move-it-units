@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type Stripe from "stripe";
+import { sendBookingConfirmationEmails } from "./bookingEmail";
 
 export interface StripeWebhookResult {
   status: number;
@@ -61,15 +62,44 @@ export async function handleStripeWebhookEvent(
       paymentMethodId = extractPaymentMethodId(paymentIntent);
     }
 
-    await prisma.booking.update({
-      where: { stripeSessionId: session.id },
-      data: {
-        status: "confirmed",
-        expiresAt: null,
-        stripePaymentIntentId: paymentIntentId,
-        stripePaymentMethodId: paymentMethodId,
+    // Confirming the booking and claiming the right to send its one
+    // confirmation email happen in the same transaction: the claim is a
+    // conditional update (only when confirmationEmailSentAt is still null)
+    // so a booking can never end up with two confirmation emails, even if
+    // this code path is ever reached more than once for the same booking
+    // (the ProcessedEvent dedupe above already prevents that for retries of
+    // the *same* Stripe event — this is a second, independent guard).
+    const { booking, shouldSendEmail } = await prisma.$transaction(
+      async (tx) => {
+        const updated = await tx.booking.update({
+          where: { stripeSessionId: session.id },
+          data: {
+            status: "confirmed",
+            expiresAt: null,
+            stripePaymentIntentId: paymentIntentId,
+            stripePaymentMethodId: paymentMethodId,
+          },
+          include: { package: true },
+        });
+
+        const claim = await tx.booking.updateMany({
+          where: { id: updated.id, confirmationEmailSentAt: null },
+          data: { confirmationEmailSentAt: new Date() },
+        });
+
+        return { booking: updated, shouldSendEmail: claim.count === 1 };
       },
-    });
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+
+    // Deliberately outside the transaction and never allowed to throw: a
+    // failed email must never fail the webhook or roll back the booking,
+    // which is already committed by this point.
+    if (shouldSendEmail) {
+      await sendBookingConfirmationEmails(prisma, booking, session.amount_total ?? 0).catch((err) => {
+        console.error(`Unexpected error sending confirmation emails for booking ${booking.bookingRef}`, err);
+      });
+    }
   } else if (event.type === "checkout.session.expired") {
     const session = event.data.object as Stripe.Checkout.Session;
 

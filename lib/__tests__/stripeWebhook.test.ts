@@ -1,7 +1,18 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type Stripe from "stripe";
-import { handleStripeWebhookEvent } from "../stripeWebhook";
+
+const sendBookingConfirmationEmailsMock = vi.fn(async () => {});
+vi.mock("../bookingEmail", () => ({
+  sendBookingConfirmationEmails: sendBookingConfirmationEmailsMock,
+}));
+
+const { handleStripeWebhookEvent } = await import("../stripeWebhook");
+
+beforeEach(() => {
+  sendBookingConfirmationEmailsMock.mockReset();
+  sendBookingConfirmationEmailsMock.mockResolvedValue(undefined);
+});
 
 function uniqueConstraintError(target: string[] = ["id"]) {
   return new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
@@ -14,6 +25,8 @@ function uniqueConstraintError(target: string[] = ["id"]) {
 interface FakePrismaOptions {
   processedEventCreateImpl?: () => Promise<unknown>;
   bookingUpdateImpl?: (args: { where: unknown; data: unknown }) => Promise<unknown>;
+  txBookingUpdateImpl?: (args: { where: unknown; data: unknown }) => Promise<unknown>;
+  txBookingUpdateManyImpl?: (args: { where: unknown; data: unknown }) => Promise<{ count: number }>;
 }
 
 function createFakePrisma(opts: FakePrismaOptions = {}) {
@@ -21,16 +34,45 @@ function createFakePrisma(opts: FakePrismaOptions = {}) {
     opts.processedEventCreateImpl ??
       (async () => ({ id: "evt_fake", type: "fake.event", processedAt: new Date() }))
   );
+
+  // Used directly by the checkout.session.expired branch (no transaction).
   const bookingUpdate = vi.fn(
     opts.bookingUpdateImpl ?? (async ({ where, data }) => ({ id: "booking_1", where, ...data }))
+  );
+
+  // Used inside the $transaction callback by the checkout.session.completed
+  // branch. Defaults to a fresh, never-emailed booking.
+  const txBookingUpdate = vi.fn(
+    opts.txBookingUpdateImpl ??
+      (async ({ where, data }: { where: unknown; data: unknown }) => ({
+        id: "booking_1",
+        bookingRef: "MVU-TEST01",
+        confirmationEmailSentAt: null,
+        where,
+        ...(data as object),
+      }))
+  );
+  const txBookingUpdateMany = vi.fn(opts.txBookingUpdateManyImpl ?? (async () => ({ count: 1 })));
+
+  const txBooking = { update: txBookingUpdate, updateMany: txBookingUpdateMany };
+  const transaction = vi.fn(async (fn: (tx: { booking: typeof txBooking }) => unknown) =>
+    fn({ booking: txBooking })
   );
 
   const prisma = {
     processedEvent: { create: processedEventCreate },
     booking: { update: bookingUpdate },
+    $transaction: transaction,
   };
 
-  return { prisma: prisma as unknown as PrismaClient, processedEventCreate, bookingUpdate };
+  return {
+    prisma: prisma as unknown as PrismaClient,
+    processedEventCreate,
+    bookingUpdate,
+    txBookingUpdate,
+    txBookingUpdateMany,
+    transaction,
+  };
 }
 
 function createFakeStripe(paymentIntentImpl?: (id: string) => Promise<Partial<Stripe.PaymentIntent>>) {
@@ -104,7 +146,7 @@ function checkoutSessionExpiredFixture(overrides: Record<string, unknown> = {}) 
 describe("handleStripeWebhookEvent", () => {
   it("confirms the booking on checkout.session.completed, storing the payment intent and payment method", async () => {
     const event = checkoutSessionCompletedFixture();
-    const { prisma, processedEventCreate, bookingUpdate } = createFakePrisma();
+    const { prisma, processedEventCreate, txBookingUpdate } = createFakePrisma();
     const { stripeClient, retrieve } = createFakeStripe(async (id) => ({
       id,
       payment_method: "pm_saved_card_1",
@@ -117,7 +159,7 @@ describe("handleStripeWebhookEvent", () => {
       data: { id: event.id, type: "checkout.session.completed" },
     });
     expect(retrieve).toHaveBeenCalledWith("pi_3PXXXXXXXXXXXXXXXXXX");
-    expect(bookingUpdate).toHaveBeenCalledWith({
+    expect(txBookingUpdate).toHaveBeenCalledWith({
       where: { stripeSessionId: "cs_test_a1b2c3d4e5f6g7h8i9j0" },
       data: {
         status: "confirmed",
@@ -125,24 +167,25 @@ describe("handleStripeWebhookEvent", () => {
         stripePaymentIntentId: "pi_3PXXXXXXXXXXXXXXXXXX",
         stripePaymentMethodId: "pm_saved_card_1",
       },
+      include: { package: true },
     });
   });
 
   it("handles a completed session whose payment intent has no attached payment method", async () => {
     const event = checkoutSessionCompletedFixture();
-    const { prisma, bookingUpdate } = createFakePrisma();
+    const { prisma, txBookingUpdate } = createFakePrisma();
     const { stripeClient } = createFakeStripe(async (id) => ({ id, payment_method: null }));
 
     await handleStripeWebhookEvent(prisma, stripeClient, event);
 
-    expect(bookingUpdate).toHaveBeenCalledWith(
+    expect(txBookingUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ stripePaymentMethodId: null }) })
     );
   });
 
   it("cancels the booking on checkout.session.expired, without calling Stripe for payment intent details", async () => {
     const event = checkoutSessionExpiredFixture();
-    const { prisma, processedEventCreate, bookingUpdate } = createFakePrisma();
+    const { prisma, processedEventCreate, bookingUpdate, transaction } = createFakePrisma();
     const { stripeClient, retrieve } = createFakeStripe();
 
     const result = await handleStripeWebhookEvent(prisma, stripeClient, event);
@@ -156,11 +199,13 @@ describe("handleStripeWebhookEvent", () => {
       data: { status: "cancelled" },
     });
     expect(retrieve).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+    expect(sendBookingConfirmationEmailsMock).not.toHaveBeenCalled();
   });
 
-  it("dedupes an already-processed event: returns 200 without touching the booking", async () => {
+  it("dedupes an already-processed event: returns 200 without touching the booking or sending email", async () => {
     const event = checkoutSessionCompletedFixture();
-    const { prisma, bookingUpdate } = createFakePrisma({
+    const { prisma, transaction } = createFakePrisma({
       processedEventCreateImpl: async () => {
         throw uniqueConstraintError(["id"]);
       },
@@ -170,8 +215,9 @@ describe("handleStripeWebhookEvent", () => {
     const result = await handleStripeWebhookEvent(prisma, stripeClient, event);
 
     expect(result.status).toBe(200);
-    expect(bookingUpdate).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
     expect(retrieve).not.toHaveBeenCalled();
+    expect(sendBookingConfirmationEmailsMock).not.toHaveBeenCalled();
   });
 
   it("records but no-ops on event types it doesn't explicitly handle", async () => {
@@ -181,7 +227,7 @@ describe("handleStripeWebhookEvent", () => {
       type: "payment_intent.succeeded",
       data: { object: { id: "pi_irrelevant" } },
     } as unknown as Stripe.Event;
-    const { prisma, processedEventCreate, bookingUpdate } = createFakePrisma();
+    const { prisma, processedEventCreate, transaction } = createFakePrisma();
 
     const { stripeClient } = createFakeStripe();
     const result = await handleStripeWebhookEvent(prisma, stripeClient, event);
@@ -190,7 +236,7 @@ describe("handleStripeWebhookEvent", () => {
     expect(processedEventCreate).toHaveBeenCalledWith({
       data: { id: event.id, type: "payment_intent.succeeded" },
     });
-    expect(bookingUpdate).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it("propagates a non-dedupe database error instead of swallowing it", async () => {
@@ -205,5 +251,57 @@ describe("handleStripeWebhookEvent", () => {
     await expect(handleStripeWebhookEvent(prisma, stripeClient, event)).rejects.toThrow(
       "connection reset"
     );
+  });
+
+  describe("confirmation email idempotency", () => {
+    it("sends the confirmation emails exactly once on first confirmation", async () => {
+      const event = checkoutSessionCompletedFixture();
+      const { prisma, txBookingUpdateMany } = createFakePrisma();
+      const { stripeClient } = createFakeStripe();
+
+      const result = await handleStripeWebhookEvent(prisma, stripeClient, event);
+
+      expect(result.status).toBe(200);
+      // The claim runs inside the same transaction as the confirm update,
+      // scoped to confirmationEmailSentAt still being null.
+      expect(txBookingUpdateMany).toHaveBeenCalledWith({
+        where: { id: "booking_1", confirmationEmailSentAt: null },
+        data: { confirmationEmailSentAt: expect.any(Date) },
+      });
+      expect(sendBookingConfirmationEmailsMock).toHaveBeenCalledTimes(1);
+      expect(sendBookingConfirmationEmailsMock).toHaveBeenCalledWith(
+        prisma,
+        expect.objectContaining({ id: "booking_1", bookingRef: "MVU-TEST01" }),
+        14900 // session.amount_total
+      );
+    });
+
+    it("does not send again when confirmationEmailSentAt was already claimed (defense in depth beyond the ProcessedEvent dedupe)", async () => {
+      const event = checkoutSessionCompletedFixture();
+      // The claim finds 0 matching rows: someone already set confirmationEmailSentAt.
+      const { prisma } = createFakePrisma({ txBookingUpdateManyImpl: async () => ({ count: 0 }) });
+      const { stripeClient } = createFakeStripe();
+
+      const result = await handleStripeWebhookEvent(prisma, stripeClient, event);
+
+      expect(result.status).toBe(200);
+      expect(sendBookingConfirmationEmailsMock).not.toHaveBeenCalled();
+    });
+
+    it("a failure sending confirmation emails still leaves the booking confirmed and the webhook returning 200", async () => {
+      const event = checkoutSessionCompletedFixture();
+      const { prisma, txBookingUpdate } = createFakePrisma();
+      const { stripeClient } = createFakeStripe();
+      sendBookingConfirmationEmailsMock.mockRejectedValueOnce(new Error("Resend is down"));
+
+      const result = await handleStripeWebhookEvent(prisma, stripeClient, event);
+
+      expect(result.status).toBe(200);
+      // The confirm update already happened (and committed) before the email
+      // was ever attempted — it's unaffected by the email failing.
+      expect(txBookingUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: "confirmed" }) })
+      );
+    });
   });
 });

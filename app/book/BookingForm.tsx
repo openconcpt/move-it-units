@@ -5,6 +5,12 @@ import { formatCents } from "@/lib/format";
 import { isZipInServiceArea, normalizeZip, SERVICE_AREA_CONTACT_EMAIL } from "@/lib/serviceArea";
 import { ADD_ON_SLUGS, type AddOnSlug } from "@/lib/addOns";
 import { PackageSpecLines } from "@/components/PackageSpecLines";
+import {
+  DEFAULT_TIME_PREFERENCE,
+  TIME_PREFERENCE_EXPECTATION_COPY,
+  TIME_PREFERENCE_OPTIONS,
+  type TimePreference,
+} from "@/lib/timePreference";
 
 interface PackageOption {
   id: string;
@@ -76,6 +82,7 @@ export function BookingForm({ packages, addOns, preselectedPackageId }: BookingF
   const [packageId, setPackageId] = useState(defaultPackageId);
   const [deliveryDate, setDeliveryDate] = useState("");
   const [pickupDate, setPickupDate] = useState("");
+  const [timePreference, setTimePreference] = useState<TimePreference>(DEFAULT_TIME_PREFERENCE);
 
   const [quantities, setQuantities] = useState<AddOnQuantities>({
     [ADD_ON_SLUGS.extraBins]: 0,
@@ -212,6 +219,7 @@ export function BookingForm({ packages, addOns, preselectedPackageId }: BookingF
           pickupZip: finalPickupZip,
           deliveryDate,
           pickupDate,
+          timePreference,
           extraBinPacks,
           extraDollies,
           blanketPacks,
@@ -282,6 +290,26 @@ export function BookingForm({ packages, addOns, preselectedPackageId }: BookingF
               className={inputClass}
             />
           </Field>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-muted">Preferred time of day</span>
+          <div className="flex flex-wrap gap-4">
+            {TIME_PREFERENCE_OPTIONS.map((option) => (
+              <label key={option.value} className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="radio"
+                  name="timePreference"
+                  value={option.value}
+                  checked={timePreference === option.value}
+                  onChange={() => setTimePreference(option.value)}
+                  className="h-4 w-4 border-line text-accent focus-visible:outline-accent"
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+          <p className="text-sm text-muted">{TIME_PREFERENCE_EXPECTATION_COPY}</p>
         </div>
 
         <AvailabilityBanner state={availability} />

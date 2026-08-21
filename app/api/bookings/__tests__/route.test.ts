@@ -284,3 +284,33 @@ describe("POST /api/bookings — add-ons", () => {
     expect(createBooking).not.toHaveBeenCalled();
   });
 });
+
+describe("POST /api/bookings — timePreference", () => {
+  it("defaults to NO_PREFERENCE when omitted from the request", async () => {
+    const res = await POST(makeRequest(validBody()));
+    expect(res.status).toBe(201);
+
+    expect(createBooking).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ timePreference: "NO_PREFERENCE" }),
+      })
+    );
+  });
+
+  it("persists a requested MORNING preference through to the created booking", async () => {
+    const res = await POST(makeRequest(validBody({ timePreference: "MORNING" })));
+    expect(res.status).toBe(201);
+
+    expect(createBooking).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ timePreference: "MORNING" }),
+      })
+    );
+  });
+
+  it("rejects a value outside the enum", async () => {
+    const res = await POST(makeRequest(validBody({ timePreference: "EVENING" })));
+    expect(res.status).toBe(400);
+    expect(createBooking).not.toHaveBeenCalled();
+  });
+});

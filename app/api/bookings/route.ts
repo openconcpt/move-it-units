@@ -8,6 +8,7 @@ import { generateBookingRef } from "@/lib/bookingRef";
 import { stripe, getOrCreateStripeCustomer } from "@/lib/stripe";
 import { isZipInServiceArea, normalizeZip, SERVICE_AREA_CONTACT_EMAIL } from "@/lib/serviceArea";
 import { ADD_ON_SLUGS, type AddOnSlug } from "@/lib/addOns";
+import { TIME_PREFERENCE_VALUES, DEFAULT_TIME_PREFERENCE } from "@/lib/timePreference";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,9 @@ const createBookingSchema = z
     extraBinPacks: z.coerce.number().int().min(0).max(5).default(0),
     extraDollies: z.coerce.number().int().min(0).max(5).default(0),
     blanketPacks: z.coerce.number().int().min(0).max(3).default(0),
+    // Non-binding routing hint — see lib/timePreference.ts. Never passed to
+    // checkPackageAvailability; must have zero effect on capacity/conflicts.
+    timePreference: z.enum(TIME_PREFERENCE_VALUES).default(DEFAULT_TIME_PREFERENCE),
   })
   .refine((data) => data.pickupDate.getTime() >= data.deliveryDate.getTime(), {
     message: "pickupDate cannot be before deliveryDate",
@@ -136,6 +140,7 @@ export async function POST(request: Request) {
               pickupAddress: input.pickupAddress,
               deliveryDate: input.deliveryDate,
               pickupDate: input.pickupDate,
+              timePreference: input.timePreference,
               extraBinPacks: input.extraBinPacks,
               extraDollies: input.extraDollies,
               blanketPacks: input.blanketPacks,
