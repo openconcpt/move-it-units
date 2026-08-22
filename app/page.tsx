@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 import { PackageCard } from "@/components/PackageCard";
 import { FaqItem } from "@/components/FaqItem";
@@ -31,24 +32,36 @@ export default async function HomePage() {
   return (
     <>
       <section className="border-b border-line">
-        <div className="mx-auto max-w-container px-6 py-16 md:px-10 md:py-24">
-          <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
-            No boxes. No tape. No cardboard pile in your garage after.
-          </h1>
-          <p className="mt-6 max-w-prose text-lg leading-relaxed text-muted">
-            We deliver clean, stackable bins to your door. You pack at your own pace. We pick
-            them up when you&apos;re done.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Link
-              href="/book"
-              className="rounded-full bg-accent px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-accent-ink"
-            >
-              Book your bins
-            </Link>
-            <a href="#packages" className="text-base font-semibold text-ink underline underline-offset-4">
-              See packages
-            </a>
+        <div className="mx-auto grid max-w-container items-center gap-10 px-6 py-16 md:px-10 md:py-24 lg:grid-cols-[1.1fr_1fr] lg:gap-12">
+          <div>
+            <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+              No boxes. No tape. No cardboard pile in your garage after.
+            </h1>
+            <p className="mt-6 max-w-prose text-lg leading-relaxed text-muted">
+              We deliver clean, stackable bins to your door. You pack at your own pace. We pick
+              them up when you&apos;re done.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <Link
+                href="/book"
+                className="rounded-full bg-accent px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-accent-ink"
+              >
+                Book your bins
+              </Link>
+              <a href="#packages" className="text-base font-semibold text-ink underline underline-offset-4">
+                See packages
+              </a>
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-line">
+            <Image
+              src="/hero-bin.png"
+              alt="A stackable moving bin with a blue write-on label reading Kitchen tied to the lid"
+              width={1536}
+              height={1024}
+              priority
+              className="h-full w-full object-cover"
+            />
           </div>
         </div>
       </section>
