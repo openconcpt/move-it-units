@@ -127,7 +127,7 @@ describe("sendBookingConfirmationEmails", () => {
       expect(body).toContain("Studio/1BR");
       expect(body).toContain("20 bins");
       expect(body).toContain("2 dollies");
-      expect(body).toContain("20 labels");
+      expect(body).toContain("20 tags");
       expect(body).toContain("Sep 1, 2026"); // delivery date
       expect(body).toContain("Sep 5, 2026"); // pickup date
       expect(body).toContain("123 Main St, 33401");

@@ -55,7 +55,7 @@ export default async function HomePage() {
           </div>
           <Image
             src="/hero-bin.png"
-            alt="A stackable moving bin with a blue write-on label reading Kitchen tied to the lid"
+            alt="A stackable moving bin with a blue write-on tag reading Kitchen tied to the lid"
             width={1536}
             height={1024}
             priority
@@ -92,8 +92,8 @@ export default async function HomePage() {
             ))}
           </div>
           <p className="mt-6 text-sm text-muted">
-            Plastic bins can&apos;t be written on like cardboard, so every kit ships with labels
-            to mark what&apos;s in each one.
+            Every kit ships with a write-on tag on a zip tie that seals the bin closed, gives you
+            a place to note what&apos;s inside, and leaves nothing to peel off afterward.
           </p>
         </div>
       </section>

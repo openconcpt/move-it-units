@@ -151,7 +151,7 @@ function renderCustomerEmail(data: BookingEmailData): RenderedEmail {
   <h1 style="font-size: 20px; margin: 0 0 4px;">Booking ${escapeHtml(data.bookingRef)}</h1>
   <p style="margin: 0 0 16px;">Your bins are booked. Here's everything for your records.</p>
 
-  <p style="margin: 0 0 4px;"><strong>${escapeHtml(data.packageName)}</strong> — ${data.binCount} bins, ${data.dollyCount} dollies, ${data.labelCount} labels</p>
+  <p style="margin: 0 0 4px;"><strong>${escapeHtml(data.packageName)}</strong> — ${data.binCount} bins, ${data.dollyCount} dollies, ${data.labelCount} tags</p>
 
   <p style="margin: 16px 0 4px;"><strong>Delivery:</strong> ${data.deliveryDate}<br>${escapeHtml(data.deliveryAddress)}</p>
   <p style="margin: 0 0 4px;"><strong>Pickup:</strong> ${data.pickupDate}<br>${escapeHtml(data.pickupAddress)}</p>
@@ -174,7 +174,7 @@ function renderCustomerEmail(data: BookingEmailData): RenderedEmail {
     "",
     "Your bins are booked. Here's everything for your records.",
     "",
-    `${data.packageName} — ${data.binCount} bins, ${data.dollyCount} dollies, ${data.labelCount} labels`,
+    `${data.packageName} — ${data.binCount} bins, ${data.dollyCount} dollies, ${data.labelCount} tags`,
     "",
     `Delivery: ${data.deliveryDate}`,
     data.deliveryAddress,
@@ -206,7 +206,7 @@ function renderOperatorEmail(data: BookingEmailData): RenderedEmail {
 
   <p style="margin: 0 0 4px;"><strong>Customer:</strong> ${escapeHtml(data.customerName)} — ${escapeHtml(data.customerPhone)} — ${escapeHtml(data.customerEmail)}</p>
 
-  <p style="margin: 16px 0 4px;"><strong>${escapeHtml(data.packageName)}</strong> — ${data.binCount} bins, ${data.dollyCount} dollies, ${data.labelCount} labels</p>
+  <p style="margin: 16px 0 4px;"><strong>${escapeHtml(data.packageName)}</strong> — ${data.binCount} bins, ${data.dollyCount} dollies, ${data.labelCount} tags</p>
 
   <p style="margin: 16px 0 4px;"><strong>Delivery:</strong> ${data.deliveryDate}<br>${escapeHtml(data.deliveryAddress)}</p>
   <p style="margin: 0 0 4px;"><strong>Pickup:</strong> ${data.pickupDate}<br>${escapeHtml(data.pickupAddress)}</p>
@@ -223,7 +223,7 @@ function renderOperatorEmail(data: BookingEmailData): RenderedEmail {
     "",
     `Customer: ${data.customerName} — ${data.customerPhone} — ${data.customerEmail}`,
     "",
-    `${data.packageName} — ${data.binCount} bins, ${data.dollyCount} dollies, ${data.labelCount} labels`,
+    `${data.packageName} — ${data.binCount} bins, ${data.dollyCount} dollies, ${data.labelCount} tags`,
     "",
     `Delivery: ${data.deliveryDate}`,
     data.deliveryAddress,
