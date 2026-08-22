@@ -3,6 +3,7 @@ import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 import { PackageCard } from "@/components/PackageCard";
 import { FaqItem } from "@/components/FaqItem";
+import { BIN_DIMENSIONS } from "@/lib/siteConfig";
 
 // Packages/pricing come from the DB — revalidate periodically rather than
 // baking prices into the static build forever.
@@ -119,6 +120,22 @@ export default async function HomePage() {
         <div className="mx-auto max-w-container px-6 py-16 md:px-10 md:py-24">
           <h2 className="font-display text-2xl font-bold sm:text-3xl">Questions</h2>
           <div className="mt-8 max-w-prose">
+            <FaqItem question="How big are the bins?">
+              Each bin is {BIN_DIMENSIONS.lengthInches}&quot; long, {BIN_DIMENSIONS.widthInches}&quot; wide,
+              and {BIN_DIMENSIONS.heightInches}&quot; tall &mdash; about {BIN_DIMENSIONS.volumeCubicFeet}{" "}
+              cubic feet, close in size to a standard medium moving box. That&apos;s roughly what a full
+              kitchen cabinet or two dresser drawers holds. They&apos;re sized to be carried by one person
+              when loaded, and to stack securely on a dolly.
+            </FaqItem>
+            <FaqItem question="How many bins do I need?">
+              Packages are sized by home, not by bin count &mdash; a studio or one-bedroom typically runs
+              20 bins, a two-bedroom 40, and a three-bedroom 50. Books, kitchens, and garages fill bins
+              faster than clothes and linens, so lean toward the next size up if those make up a big
+              share of your move. If you run short, you can add 10 more bins for $29 right at booking,
+              or just call us and we&apos;ll bring extras. Packages are sized generously on purpose &mdash;
+              most people finish with a few bins left over, and that beats running out mid-pack on a
+              Saturday night.
+            </FaqItem>
             <FaqItem question="What if I need the bins longer than a week?">
               It&apos;s $10 per day, billed automatically to the card on file. No need to call —
               just let us know how much extra time you need.

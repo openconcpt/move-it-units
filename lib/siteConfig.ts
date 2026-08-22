@@ -11,3 +11,12 @@ export const EXTENSION_DAILY_RATE_CENTS = 1000;
 // gives you the registered entity (e.g. "Acme Holdings LLC"). Shows up in
 // the footer's fictitious-name disclosure.
 export const REGISTERED_ENTITY_NAME = "[registered entity name — pending DBA filing]";
+
+// Single source of truth for bin dimensions — the FAQ and the package card
+// spec line both read from this so they can't drift apart.
+export const BIN_DIMENSIONS = {
+  lengthInches: 27,
+  widthInches: 17,
+  heightInches: 12,
+  volumeCubicFeet: 2.5,
+} as const;
