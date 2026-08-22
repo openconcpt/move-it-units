@@ -32,7 +32,7 @@ export default async function HomePage() {
   return (
     <>
       <section className="border-b border-line">
-        <div className="mx-auto grid max-w-container items-center gap-10 px-6 py-16 md:px-10 md:py-24 lg:grid-cols-[1.1fr_1fr] lg:gap-12">
+        <div className="mx-auto grid max-w-container items-center gap-10 px-6 py-16 md:px-10 md:py-24 lg:grid-cols-[1fr_1.1fr] lg:gap-12">
           <div>
             <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
               No boxes. No tape. No cardboard pile in your garage after.
@@ -53,16 +53,14 @@ export default async function HomePage() {
               </a>
             </div>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-line">
-            <Image
-              src="/hero-bin.png"
-              alt="A stackable moving bin with a blue write-on label reading Kitchen tied to the lid"
-              width={1536}
-              height={1024}
-              priority
-              className="h-full w-full object-cover"
-            />
-          </div>
+          <Image
+            src="/hero-bin.png"
+            alt="A stackable moving bin with a blue write-on label reading Kitchen tied to the lid"
+            width={1536}
+            height={1024}
+            priority
+            className="h-auto w-full"
+          />
         </div>
       </section>
 
