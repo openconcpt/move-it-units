@@ -9,6 +9,10 @@
   --muted: #5b6360;
   --line: #e2e0d8;
   --structural: #6b7370;
+  /* structural blended ~22% into paper — a neutral band a shade darker than
+     the page, for the footer. Not accent-tinted on purpose: it's chrome,
+     not a call to action. */
+  --structural-soft: #dbdcd9;
   --accent: #1f6fc4;
   --accent-ink: #1a436e;
   --accent-soft: #e5eff8;

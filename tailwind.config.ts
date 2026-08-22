@@ -13,9 +13,11 @@ const config: Config = {
         ink: "var(--ink)",
         muted: "var(--muted)",
         line: "var(--line)",
-        // Not yet applied anywhere — reserved for future components that
-        // need the logo's gray (e.g. bin illustrations, neutral chips).
-        structural: "var(--structural)",
+        structural: {
+          DEFAULT: "var(--structural)",
+          // Neutral band a shade darker than the page — the footer.
+          soft: "var(--structural-soft)",
+        },
         accent: {
           DEFAULT: "var(--accent)",
           ink: "var(--accent-ink)",

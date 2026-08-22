@@ -72,7 +72,7 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <section id="packages" className="border-b border-line">
+      <section id="packages" className="scroll-mt-[76px] border-b border-line sm:scroll-mt-[97px]">
         <div className="mx-auto max-w-container px-6 py-16 md:px-10 md:py-24">
           <h2 className="font-display text-2xl font-bold sm:text-3xl">Packages</h2>
           <p className="mt-2 text-muted">
@@ -115,7 +115,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section>
+      <section id="questions" className="scroll-mt-[76px] sm:scroll-mt-[97px]">
         <div className="mx-auto max-w-container px-6 py-16 md:px-10 md:py-24">
           <h2 className="font-display text-2xl font-bold sm:text-3xl">Questions</h2>
           <div className="mt-8 max-w-prose">

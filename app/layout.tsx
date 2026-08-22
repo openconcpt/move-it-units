@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { Archivo, Inter } from "next/font/google";
 import type { ReactNode } from "react";
-import Link from "next/link";
-import Image from "next/image";
 import "./globals.css";
-import { PHONE_DISPLAY, PHONE_TEL_HREF } from "@/lib/siteConfig";
+import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const display = Archivo({
   subsets: ["latin"],
@@ -30,42 +29,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`h-full antialiased ${display.variable} ${body.variable}`}>
       <body className="flex min-h-full flex-col bg-paper font-sans text-ink">
-        <header className="border-b border-line bg-paper">
-          <div className="mx-auto flex max-w-container items-center justify-between px-6 py-4 md:px-10">
-            <Link href="/" className="flex items-center">
-              <Image
-                src="/wordmark.png"
-                alt="Move It Units"
-                width={2000}
-                height={400}
-                priority
-                className="h-[39px] w-auto"
-              />
-            </Link>
-            <div className="flex flex-col items-end gap-1">
-              <Link
-                href="/book"
-                className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-ink"
-              >
-                Book now
-              </Link>
-              <a
-                href={PHONE_TEL_HREF}
-                className="text-sm font-semibold text-accent underline-offset-2 hover:underline"
-              >
-                {PHONE_DISPLAY}
-              </a>
-            </div>
-          </div>
-        </header>
+        <SiteHeader />
 
         <main className="flex-1">{children}</main>
 
-        <footer className="border-t border-line bg-paper">
-          <div className="mx-auto max-w-container px-6 py-8 text-sm text-muted md:px-10">
-            <p>Move It Units — clean bins, delivered and picked up. No cardboard required.</p>
-          </div>
-        </footer>
+        <SiteFooter />
       </body>
     </html>
   );
